@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'screens/computer_mode_screen.dart';
 import 'screens/player_mode_screen.dart';
 import 'screens/sound_test_screen.dart';
@@ -6,7 +9,27 @@ import 'screens/basic_sound_test_screen.dart';
 import 'screens/fallback_sound_screen.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
+  // Ensure bindings are initialized before any async work
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase with the generated options
+  try {
+    // For web, use web options specifically
+    if (kIsWeb) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.web,
+      );
+    } else {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
+    // Continue without Firebase if initialization fails
+  }
+
   runApp(const MyApp());
 }
 
