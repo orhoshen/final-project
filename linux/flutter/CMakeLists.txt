@@ -6,6 +6,15 @@ set(EPHEMERAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ephemeral")
 # Configuration provided via flutter tool.
 include(${EPHEMERAL_DIR}/generated_config.cmake)
 
+# Check if we're running on macOS
+if(APPLE)
+  # Include stub pkg-config implementation for macOS
+  include(${EPHEMERAL_DIR}/pkg_config_stub.cmake)
+else()
+  # System-level dependencies for Linux
+  find_package(PkgConfig REQUIRED)
+endif()
+
 # TODO: Move the rest of this into files in ephemeral. See
 # https://github.com/flutter/flutter/issues/57146.
 
@@ -21,10 +30,17 @@ endfunction()
 
 # === Flutter Library ===
 # System-level dependencies.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
-pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0)
-pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
+if(NOT APPLE)
+  # Only perform these checks on Linux
+  pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
+  pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0)
+  pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
+else()
+  # On macOS, create empty variables
+  set(GTK_LIBRARIES "")
+  set(GLIB_LIBRARIES "")
+  set(GIO_LIBRARIES "")
+endif()
 
 set(FLUTTER_LIBRARY "${EPHEMERAL_DIR}/libflutter_linux_gtk.so")
 
@@ -61,12 +77,20 @@ add_library(flutter INTERFACE)
 target_include_directories(flutter INTERFACE
   "${EPHEMERAL_DIR}"
 )
-target_link_libraries(flutter INTERFACE "${FLUTTER_LIBRARY}")
-target_link_libraries(flutter INTERFACE
-  PkgConfig::GTK
-  PkgConfig::GLIB
-  PkgConfig::GIO
-)
+
+if(EXISTS "${FLUTTER_LIBRARY}")
+  target_link_libraries(flutter INTERFACE "${FLUTTER_LIBRARY}")
+endif()
+
+if(NOT APPLE)
+  # Only use these on Linux
+  target_link_libraries(flutter INTERFACE
+    PkgConfig::GTK
+    PkgConfig::GLIB
+    PkgConfig::GIO
+  )
+endif()
+
 add_dependencies(flutter flutter_assemble)
 
 # === Flutter tool backend ===

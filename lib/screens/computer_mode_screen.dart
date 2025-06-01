@@ -14,10 +14,10 @@ class ComputerModeScreen extends StatefulWidget {
 }
 
 class _ComputerModeScreenState extends State<ComputerModeScreen> {
+  final FirebaseMelodyService _melodyService = FirebaseMelodyService();
+  final ServerMelodyMatcher _matcherService = ServerMelodyMatcher.instance;
   final MidiService _midiService = MidiService();
   final SimpleAudioPlayer _simpleAudio = SimpleAudioPlayer();
-  final ServerMelodyMatcher _serverMatcher = ServerMelodyMatcher.instance;
-  final FirebaseMelodyService _melodyService = FirebaseMelodyService.instance;
   List<int> _computerSequence = [];
   List<int> _playerSequence = [];
   bool _isPlayerTurn = false;
@@ -25,7 +25,6 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
   bool _isPlayingSequence = false;
   int? _highlightedNote;
   bool _serverAvailable = false;
-  bool _hasFetchedMelodies = false;
   String _statusMessage = 'Initializing...';
   double? _lastMatchScore;
   Map<String, dynamic>? _lastDifficultyInfo;
@@ -53,7 +52,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
       });
       
       // Test server connection
-      _serverAvailable = await _serverMatcher.testConnection();
+      _serverAvailable = await _matcherService.testConnection();
       developer.log('Server connection test: ${_serverAvailable ? 'SUCCESS' : 'FAILED'}');
       
       setState(() {
@@ -66,7 +65,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
       _melodyService.fetchMelodies().then((_) {
         if (mounted) {
           setState(() {
-            _hasFetchedMelodies = true;
+            // _hasFetchedMelodies = true;
           });
         }
       }).catchError((e) {
@@ -122,7 +121,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
     if (_serverAvailable) {
       try {
         // Use server for more advanced comparison
-        final result = await _serverMatcher.compareMelodies(
+        final result = await _matcherService.compareMelodies(
           _computerSequence, 
           _playerSequence
         );
@@ -159,10 +158,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
           
           setState(() {
             _lastMatchScore = score;
-            _lastComparisonDetails = {
-              'individual_scores': detailedScores,
-              ...additionalMetrics,
-            };
+            _lastComparisonDetails = Map<String, dynamic>.from(resultData);
             _processingTimeMs = processingTime;
           });
           
@@ -233,7 +229,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
     }
     
     // Calculate a simple score
-    final simpleScore = matches / _computerSequence.length;
+    final simpleScore = _computerSequence.isEmpty ? 0.0 : matches / _computerSequence.length;
     
     // Calculate processing time
     final endTime = DateTime.now().millisecondsSinceEpoch;
@@ -243,10 +239,11 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
       _lastMatchScore = simpleScore;
       _processingTimeMs = processingTime;
       _lastComparisonDetails = {
+        'final_score': simpleScore,
+        'pitch_accuracy': simpleScore,
         'individual_scores': {
           'exact_match': simpleScore,
         },
-        'pitch_accuracy': simpleScore,
       };
     });
 
@@ -272,9 +269,15 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
   }
 
   void _onNoteReleased(int midiNote) {
+    if (!mounted) return;
     if (_highlightedNote == midiNote) {
-      setState(() {
-        _highlightedNote = null;
+      // Delay setState to after the current frame
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) { // Check mounted again inside the callback
+          setState(() {
+            _highlightedNote = null;
+          });
+        }
       });
     }
   }
@@ -300,7 +303,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
     // If server is available, get the actual difficulty estimate
     if (_serverAvailable) {
       try {
-        final difficultyResult = await _serverMatcher.estimateDifficulty(melody);
+        final difficultyResult = await _matcherService.estimateDifficulty(melody);
         if (difficultyResult['success'] == true) {
           setState(() {
             _lastDifficultyInfo = difficultyResult['result'];
@@ -368,42 +371,44 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (BuildContext dialogContext) => AlertDialog(
         title: const Text('Game Over'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Your Score: $_score',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            if (finalScore != null) 
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Text(
-                'Final Match: ${(finalScore * 100).toStringAsFixed(1)}%',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: _getColorForScore(finalScore),
+                'Your Score: $_score',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              if (finalScore != null)
+                Text(
+                  'Final Match: ${(finalScore * 100).toStringAsFixed(1)}%',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: _getColorForScore(finalScore),
+                  ),
                 ),
+              const SizedBox(height: 16),
+              Text(
+                'Can you beat your high score?',
+                style: Theme.of(context).textTheme.bodyLarge,
               ),
-            const SizedBox(height: 16),
-            Text(
-              'Can you beat your high score?',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            
-            // Add detailed metrics if available
-            if (_lastComparisonDetails != null && !_isPlayingSequence)
-              Padding(
-                padding: const EdgeInsets.only(top: 16.0),
-                child: _buildMetricsDisplay(),
-              ),
-          ],
+
+              // Add detailed metrics if available
+              if (_lastComparisonDetails != null && !_isPlayingSequence)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: _buildMetricsDisplay(dialogContext), 
+                ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
+              Navigator.of(dialogContext).pop();
               _startNewGame();
             },
             child: const Text('Play Again'),
@@ -430,22 +435,29 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
   }
 
   // Build a metrics display widget for comparison details
-  Widget _buildMetricsDisplay() {
+  Widget _buildMetricsDisplay(BuildContext dialogContext) {
     if (_lastComparisonDetails == null) return const SizedBox.shrink();
-    
+
     final scoreData = _lastComparisonDetails!;
-    
+    final bool serverComparison = scoreData.containsKey('note_details') || scoreData.containsKey('processing_time_ms');
+
+    // Safely extract new metrics
+    final double? pitchAccuracy = scoreData['pitch_accuracy'] as double?;
+    final double? timingAccuracy = scoreData['timing_accuracy'] as double?;
+    final double? matchingRuntimeNocom = scoreData['processing_time_ms'] as double?;
+    final List<dynamic>? noteDetailsList = scoreData['note_details'] as List<dynamic>?;
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(8),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Color.fromRGBO(0, 0, 0, 0.1),
             blurRadius: 4,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -456,14 +468,14 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Detailed Analysis', 
+                serverComparison ? 'Server Analysis' : 'Offline Analysis',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
               if (_processingTimeMs != null)
                 Text(
-                  'Process: ${_processingTimeMs}ms',
+                  'Response Time: ${_processingTimeMs}ms', 
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.grey.shade700,
                   ),
@@ -476,7 +488,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 12.0),
               child: Text(
-                'Final Score: ${(_lastMatchScore! * 100).toStringAsFixed(1)}%',
+                'Overall Score: ${(_lastMatchScore! * 100).toStringAsFixed(1)}%',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: _getColorForScore(_lastMatchScore!),
@@ -485,14 +497,15 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
             ),
           
           // Display accuracies if available
-          if (scoreData.containsKey('pitch_accuracy'))
-            _buildMetricRow('Pitch Accuracy', 
-              (scoreData['pitch_accuracy'] as double) * 100),
+          if (pitchAccuracy != null)
+            _buildMetricRow('Pitch Accuracy', pitchAccuracy * 100),
           
-          if (scoreData.containsKey('timing_accuracy'))
-            _buildMetricRow('Timing Accuracy', 
-              (scoreData['timing_accuracy'] as double) * 100),
-              
+          if (timingAccuracy != null)
+            _buildMetricRow('Timing Accuracy', timingAccuracy * 100),
+            
+          if (matchingRuntimeNocom != null)
+             _buildMetricRow('Server Match Time (no com)', matchingRuntimeNocom, isMilliseconds: false),
+          
           if (scoreData.containsKey('onset_accuracy'))
             _buildMetricRow('Onset Accuracy', 
               (scoreData['onset_accuracy'] as double) * 100),
@@ -504,7 +517,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
           // Divider before algorithm scores
           const Divider(),
           Text(
-            'Algorithm Scores:',
+            serverComparison ? 'Server Algorithm Scores:' : 'Offline Algorithm Scores:',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -520,12 +533,56 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
             ],
           ),
           
+          if (noteDetailsList != null && noteDetailsList.isNotEmpty) ...[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
+                'Note Details:',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: noteDetailsList.length,
+              itemBuilder: (context, index) {
+                final note = noteDetailsList[index] as Map<String, dynamic>;
+                final targetNoteName = note['target_note_name'] ?? 'N/A';
+                final playedNoteName = note['played_note_name'] ?? 'N/A';
+                final isCorrectPitch = note['is_correct_pitch'] ?? false;
+                final onsetErr = note['onset_error'] ?? 'N/A';
+                final durationErr = note['duration_error'] ?? 'N/A';
+
+                return Card(
+                  elevation: 1,
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Note ${index + 1}: Target: $targetNoteName, Played: $playedNoteName',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Text('Correct Pitch: ${isCorrectPitch ? "Yes" : "No"}', style: TextStyle(color: isCorrectPitch ? Colors.green : Colors.red)),
+                        Text('Onset Error: $onsetErr ms'),
+                        Text('Duration Error: $durationErr ms'),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+          
           // Add Close button
           const SizedBox(height: 16),
           Center(
             child: ElevatedButton(
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).colorScheme.primary,
@@ -540,7 +597,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
   }
   
   // Helper to build individual metric rows
-  Widget _buildMetricRow(String label, double percentValue) {
+  Widget _buildMetricRow(String label, double value, {bool isMilliseconds = true}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -550,21 +607,23 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
           Row(
             children: [
               Text(
-                '${percentValue.toStringAsFixed(1)}%',
+                isMilliseconds ? '${value.toStringAsFixed(1)}ms' : value.toStringAsFixed(isMilliseconds ? 1 : 2),
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: _getColorForScore(percentValue / 100),
+                  color: isMilliseconds ? Colors.black : _getColorForScore(value / (isMilliseconds ? 1 : 100)),
                 ),
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 60,
-                child: LinearProgressIndicator(
-                  value: percentValue / 100,
-                  backgroundColor: Colors.grey.shade300,
-                  color: _getColorForScore(percentValue / 100),
+              if (!isMilliseconds) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 60,
+                  child: LinearProgressIndicator(
+                    value: value / 100,
+                    backgroundColor: Colors.grey.shade300,
+                    color: _getColorForScore(value / 100),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
@@ -725,7 +784,7 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
             
             // Add detailed metrics display
             if (_lastComparisonDetails != null && !_isPlayingSequence)
-              _buildMetricsDisplay(),
+              _buildMetricsDisplay(context),
             
             const SizedBox(height: 20),
             SizedBox(

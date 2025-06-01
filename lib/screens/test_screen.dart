@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/midi_service.dart';
 
 class TestScreen extends StatefulWidget {
@@ -25,7 +26,7 @@ class _TestScreenState extends State<TestScreen> {
         _isInitialized = true;
       });
     } catch (e) {
-      print('Error initializing MIDI: $e');
+      debugPrint('Error initializing MIDI: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error initializing MIDI: $e')),
@@ -49,9 +50,9 @@ class _TestScreenState extends State<TestScreen> {
     }
 
     try {
-      await _midiService.playNote(midiNote);
+      await _midiService.playMidiNote(midiNote);
     } catch (e) {
-      print('Error playing note: $e');
+      debugPrint('Error playing note: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error playing note: $e')),
@@ -99,4 +100,4 @@ class _TestScreenState extends State<TestScreen> {
       ),
     );
   }
-} 
+}

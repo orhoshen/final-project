@@ -1,5 +1,5 @@
 # Project-level configuration.
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.10)
 project(runner LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
@@ -7,7 +7,22 @@ project(runner LANGUAGES CXX)
 set(BINARY_NAME "hi_world_app")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "com.example.hi_world_app")
+set(APPLICATION_ID "com.example.hiWorldApp")
+
+# Special handling for macOS builds
+if(APPLE)
+  message(STATUS "Building on macOS - Some Linux-specific features will be disabled")
+  
+  # Create a minimal CMake build for macOS
+  add_executable(${BINARY_NAME} 
+    # Add minimal source files
+    "my_application.cc" 
+    "main.cc"
+  )
+  
+  # Return early - rest of the file is Linux-specific
+  return()
+endif()
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -54,10 +69,17 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
-# Application build; see runner/CMakeLists.txt.
-add_subdirectory("runner")
+add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 
-# Run the Flutter tool portions of the build. This must not be removed.
+# Application build; see runner/CMakeLists.txt.
+add_executable(${BINARY_NAME}
+  "main.cc"
+  "my_application.cc"
+  "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
+)
+apply_standard_settings(${BINARY_NAME})
+target_link_libraries(${BINARY_NAME} PRIVATE flutter)
+target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
 # Only the install-generated bundle's copy of the executable will launch
@@ -100,11 +122,11 @@ install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
-foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
-  install(FILES "${bundled_library}"
+if(PLUGIN_BUNDLED_LIBRARIES)
+  install(FILES "${PLUGIN_BUNDLED_LIBRARIES}"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
-endforeach(bundled_library)
+endif()
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")

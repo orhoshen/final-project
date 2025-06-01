@@ -37,11 +37,22 @@ dependencies:
   flutter_midi_pro: ^3.1.4
   path_provider: ^2.1.2
   just_audio: ^0.9.36
+  provider: ^6.1.2
+  
+  # Web socket for multiplayer communication
+  # web_socket_channel: ^2.4.0 # We are replacing this
+  socket_io_client: ^2.0.3 # For Socket.IO communication
+  
+  # Shared preferences for storing user settings
+  shared_preferences: ^2.2.2
 
   # Only use Firebase Core for initialization
   firebase_core: ^2.14.0
   
   http: ^1.4.0
+  
+  # Web APIs for modern web development
+  web: ^1.0.0
 
 dev_dependencies:
   flutter_test:

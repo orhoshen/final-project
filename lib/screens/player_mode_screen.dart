@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/piano_keyboard.dart';
+import '../widgets/analysis_report_widget.dart';
 import '../services/midi_service.dart';
 import '../services/simple_audio_player.dart';
 import '../services/server_melody_matcher.dart';
@@ -34,7 +35,8 @@ class _PlayerModeScreenState extends State<PlayerModeScreen> {
   int _player2Score = 0;
   int? _highlightedNote;
   bool _serverAvailable = true;
-  Map<String, dynamic>? _lastComparisonResult;
+  Map<String, dynamic>? _lastComparisonDetails;
+  int? _comparisonProcessingTimeMs;
   bool _gameStarted = false;
 
   @override
@@ -78,25 +80,28 @@ class _PlayerModeScreenState extends State<PlayerModeScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Enter Player Names'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _player1NameController,
-              decoration: const InputDecoration(
-                labelText: 'Player 1 Name',
-                hintText: 'Enter name for Player 1',
+        content: SizedBox(
+          width: 300,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _player1NameController,
+                decoration: const InputDecoration(
+                  labelText: 'Player 1 Name',
+                  hintText: 'Enter name for Player 1',
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _player2NameController,
-              decoration: const InputDecoration(
-                labelText: 'Player 2 Name',
-                hintText: 'Enter name for Player 2',
+              const SizedBox(height: 16),
+              TextField(
+                controller: _player2NameController,
+                decoration: const InputDecoration(
+                  labelText: 'Player 2 Name',
+                  hintText: 'Enter name for Player 2',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -264,341 +269,218 @@ class _PlayerModeScreenState extends State<PlayerModeScreen> {
     
     developer.log('Comparing sequences: Reference: $_referenceSequence, Attempt: $_attemptSequence');
     
+    // Start timing for client-server-client round trip or local processing
+    final startTime = DateTime.now().millisecondsSinceEpoch;
+
     bool isMatch = false;
     double matchScore = 0.0;
+    Map<String, dynamic>? currentComparisonDetails;
     
     if (_serverAvailable) {
       try {
-        // Use server for advanced melody comparison
-        final result = await _serverMatcher.compareMelodies(
+        final serverResult = await _serverMatcher.compareMelodies(
           _referenceSequence, 
           _attemptSequence
         );
         
-        if (result['success'] == true) {
-          _lastComparisonResult = result;
-          matchScore = result['result']['final_score'] as double;
+        if (serverResult['success'] == true && serverResult['result'] != null) {
+          currentComparisonDetails = Map<String, dynamic>.from(serverResult['result']);
+          matchScore = currentComparisonDetails['final_score'] as double? ?? 0.0;
           developer.log('Server comparison score: $matchScore');
-          
-          // Consider it a match if score is above 0.7 (70% match)
-          isMatch = matchScore > 0.7;
+          isMatch = matchScore > 0.7; // Define match threshold
         } else {
-          // Fall back to simple comparison if server returns error
+          developer.log('Server comparison returned success:false or null result. Falling back.');
           isMatch = _performSimpleComparison();
+          matchScore = isMatch ? 1.0 : 0.3; // Arbitrary score for simple comparison
+          currentComparisonDetails = {
+            'final_score': matchScore,
+            'pitch_accuracy': matchScore,
+            'individual_scores': {'exact_match': matchScore}
+          }; 
         }
       } catch (e) {
-        developer.log('Error with server comparison: $e');
+        developer.log('Error with server comparison: $e. Falling back.');
         isMatch = _performSimpleComparison();
+        matchScore = isMatch ? 1.0 : 0.3;
+        currentComparisonDetails = {
+          'final_score': matchScore,
+          'pitch_accuracy': matchScore,
+          'individual_scores': {'exact_match': matchScore}
+        };
       }
     } else {
-      // Use simple comparison if server is not available
       isMatch = _performSimpleComparison();
+      matchScore = isMatch ? 1.0 : 0.3;
+      currentComparisonDetails = {
+        'final_score': matchScore,
+        'pitch_accuracy': matchScore,
+        'individual_scores': {'exact_match': matchScore}
+      };
     }
 
-    // Award points to the matcher player if they matched successfully
-    if (isMatch) {
-      setState(() {
+    final endTime = DateTime.now().millisecondsSinceEpoch;
+    final roundTripTime = endTime - startTime;
+
+    setState(() {
+      _lastComparisonDetails = currentComparisonDetails; // Store details for the dialog
+      _comparisonProcessingTimeMs = roundTripTime; // Store client-server-client time
+      if (isMatch) {
         if (_isPlayer1Creator) {
-          // Player 2 is matching
           _player2Score++;
         } else {
-          // Player 1 is matching
           _player1Score++;
         }
-      });
-    }
+      }
+    });
 
-    _showRoundResult(isMatch, matchScore);
+    _showRoundResult(isMatch, matcherName, creatorName);
   }
   
   bool _performSimpleComparison() {
+    if (_referenceSequence.isEmpty || _attemptSequence.isEmpty) return false;
     if (_referenceSequence.length != _attemptSequence.length) {
       return false;
     }
-    
     for (int i = 0; i < _referenceSequence.length; i++) {
       if (_referenceSequence[i] != _attemptSequence[i]) {
         return false;
       }
     }
-    
     return true;
   }
 
-  // Helper methods for building metrics display
-  // (unchanged - keeping existing implementation)
+  void _showRoundResult(bool isMatch, String matcherName, String creatorName) {
+    String title = isMatch ? 'Melody Matched!' : 'Try Again!';
+    String message = isMatch
+        ? '$matcherName successfully matched $creatorName\'s melody!'
+        : '$matcherName didn\'t quite match. Better luck next time!';
 
-  // Helper to build algorithm score chips
-  // (unchanged - keeping existing implementation)
-
-  // Get color based on score
-  // (unchanged - keeping existing implementation)
-
-  void _showRoundResult(bool isMatch, double matchScore) {
-    String creatorName = _isPlayer1Creator ? _player1Name : _player2Name;
-    String matcherName = _isPlayer1Creator ? _player2Name : _player1Name;
-    
-    // If we have detailed metrics to show
-    if (_lastComparisonResult != null && 
-        _lastComparisonResult!.containsKey('result') && 
-        _lastComparisonResult!['result'] is Map<String, dynamic>) {
-      
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text(
-            isMatch ? 'Match!' : 'No Match!',
-            style: TextStyle(
-              color: isMatch 
-                  ? Theme.of(context).colorScheme.primary 
-                  : Theme.of(context).colorScheme.error,
-            ),
-          ),
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent closing by tapping outside
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(title),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: Text(
-                    'Match Score: ${(matchScore * 100).toStringAsFixed(1)}%',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: _getColorForScore(matchScore),
-                    ),
+                Text(message),
+                const SizedBox(height: 16),
+                // Display the detailed analytics using the shared widget
+                if (_lastComparisonDetails != null)
+                  AnalysisReportWidget(
+                    scoreData: _lastComparisonDetails!,
+                    clientRoundTripTime: _comparisonProcessingTimeMs,
+                    onClose: () => Navigator.of(dialogContext).pop(),
                   ),
-                ),
-                Text(
-                  '$creatorName created the melody\n$matcherName tried to match it',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 12),
-                _buildMetricsDisplay(),
-                const SizedBox(height: 12),
-                Text(
-                  '$_player1Name\'s Score: $_player1Score',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: (!_isPlayer1Creator && isMatch)
-                            ? Theme.of(context).colorScheme.primary 
-                            : null,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '$_player2Name\'s Score: $_player2Score',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: (_isPlayer1Creator && isMatch)
-                            ? Theme.of(context).colorScheme.primary 
-                            : null,
-                      ),
-                ),
               ],
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop();
-                _prepareNextRound();
+                Navigator.of(dialogContext).pop();
+                _startNextRoundOrEndGame(); 
               },
-              child: const Text('Continue'),
+              child: const Text('Next Round'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _resetGame(); // Or navigate to a game summary screen
+              },
+              child: const Text('End Game'),
             ),
           ],
-        ),
-      );
-    } else {
-      // Show the regular result dialog without detailed metrics
+        );
+      },
+    );
+  }
+
+
+
+  void _startNextRoundOrEndGame() {
+    // Check if this was the last round (e.g., 5 rounds)
+    if (_roundNumber >= 5) { 
+      // Show final game over dialog
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          title: Text(
-            isMatch ? 'Match!' : 'No Match!',
-            style: TextStyle(
-              color: isMatch 
-                  ? Theme.of(context).colorScheme.primary 
-                  : Theme.of(context).colorScheme.error,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: Text(
-                  'Match Score: ${(matchScore * 100).toStringAsFixed(1)}%',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: _getColorForScore(matchScore),
-                  ),
-                ),
-              ),
-              Text(
-                '$creatorName created the melody\n$matcherName tried to match it',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '$_player1Name\'s Score: $_player1Score',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: (!_isPlayer1Creator && isMatch)
-                          ? Theme.of(context).colorScheme.primary 
-                          : null,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '$_player2Name\'s Score: $_player2Score',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: (_isPlayer1Creator && isMatch)
-                          ? Theme.of(context).colorScheme.primary 
-                          : null,
-                    ),
-              ),
-            ],
+          title: const Text('Game Over!'),
+          content: Text(
+            'Final Scores:\n$_player1Name: $_player1Score\n$_player2Name: $_player2Score',
+            style: Theme.of(context).textTheme.bodyLarge,
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _prepareNextRound();
+                _resetGame(); // Reset for a new game or go to main menu
               },
-              child: const Text('Continue'),
+              child: const Text('Play Again'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Prepare for the next round
+      setState(() {
+        _roundNumber++;
+        _isPlayer1Creator = !_isPlayer1Creator; // Switch roles
+        _isCreatorTurn = true;
+        _referenceSequence = [];
+        _attemptSequence = [];
+        _lastComparisonDetails = null; // Clear previous comparison details
+        _comparisonProcessingTimeMs = null; // Clear previous timing
+        _isRecording = false; 
+      });
+      // Optionally, show instructions for the new round/creator
+      String nextCreator = _isPlayer1Creator ? _player1Name : _player2Name;
+      String nextMatcher = _isPlayer1Creator ? _player2Name : _player1Name;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text('Round $_roundNumber'),
+          content: Text(
+            'Now $nextCreator will create a melody, and $nextMatcher will match it.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Begin'),
             ),
           ],
         ),
       );
     }
   }
-
-  void _prepareNextRound() {
-    // Check if this was the last round
-    if (_roundNumber >= 5) {
-      _showGameOver();
-      return;
-    }
-    
-    // Prepare for next round
-    setState(() {
-      _roundNumber++;
-      // Switch creator role - alternate who creates the melody
-      _isPlayer1Creator = !_isPlayer1Creator;
-      _isCreatorTurn = true;
-      _referenceSequence = [];
-      _attemptSequence = [];
-      _lastComparisonResult = null;
-    });
-    
-    // Show instructions for the new round
-    _showNextRoundInstructions();
-  }
   
-  void _showNextRoundInstructions() {
-    String creatorName = _isPlayer1Creator ? _player1Name : _player2Name;
-    String matcherName = _isPlayer1Creator ? _player2Name : _player1Name;
-    
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('Round $_roundNumber'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Next, $creatorName will create a melody.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Then, $matcherName will try to match it.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('Begin'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showGameOver() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Game Over'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '$_player1Name\'s Score: $_player1Score',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: _player1Score > _player2Score 
-                        ? Theme.of(context).colorScheme.primary 
-                        : null,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$_player2Name\'s Score: $_player2Score',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: _player2Score > _player1Score 
-                        ? Theme.of(context).colorScheme.primary 
-                        : null,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _player1Score > _player2Score
-                  ? '$_player1Name Wins!'
-                  : _player2Score > _player1Score
-                      ? '$_player2Name Wins!'
-                      : 'It\'s a Tie!',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _startNewGame();
-            },
-            child: const Text('Play Again'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _startNewGame() {
-    developer.log('Starting new game');
+  void _resetGame() {
     setState(() {
+      _player1Name = _player1NameController.text.isNotEmpty ? _player1NameController.text : 'Player 1';
+      _player2Name = _player2NameController.text.isNotEmpty ? _player2NameController.text : 'Player 2';
+      _roundNumber = 1;
       _player1Score = 0;
       _player2Score = 0;
-      _roundNumber = 1;
-      _isCreatorTurn = true;
       _isPlayer1Creator = true;
+      _isCreatorTurn = true;
       _referenceSequence = [];
       _attemptSequence = [];
       _isRecording = false;
       _highlightedNote = null;
-      _lastComparisonResult = null;
+      _lastComparisonDetails = null;
+      _comparisonProcessingTimeMs = null;
+      _gameStarted = false; // This will trigger player registration again if needed
     });
-    _showPlayerRegistration();
+    // Show player registration to start a new game flow
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+       if (!_gameStarted) {
+         _showPlayerRegistration();
+       }
+    });
   }
 
   @override
@@ -726,203 +608,6 @@ class _PlayerModeScreenState extends State<PlayerModeScreen> {
             ),
           ),
           const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  // Helper to build individual metric rows
-  Widget _buildMetricRow(String label, double percentValue) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Row(
-            children: [
-              Text(
-                '${percentValue.toStringAsFixed(1)}%',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: _getColorForScore(percentValue / 100),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 60,
-                child: LinearProgressIndicator(
-                  value: percentValue / 100,
-                  backgroundColor: Colors.grey.shade300,
-                  color: _getColorForScore(percentValue / 100),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-  
-  // Helper to build algorithm score chips
-  Widget _buildAlgorithmChip(String algorithm, double percentValue) {
-    // Format algorithm name to be more readable
-    final readableName = algorithm
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((word) => word.isNotEmpty ? '${word[0].toUpperCase()}${word.substring(1)}' : '')
-        .join(' ');
-    
-    // Add brief description for each algorithm
-    String description = '';
-    switch (algorithm) {
-      case 'dtw':
-        description = '(Timing)';
-        break;
-      case 'levenshtein':
-        description = '(Notes)';
-        break;
-      case 'lcs':
-        description = '(Patterns)';
-        break;
-      case 'cosine':
-        description = '(Overall)';
-        break;
-      case 'exact_match':
-        description = '(Exact)';
-        break;
-      default:
-        description = '';
-    }
-        
-    return Chip(
-      label: RichText(
-        text: TextSpan(
-          style: Theme.of(context).textTheme.bodySmall,
-          children: [
-            TextSpan(
-              text: '$readableName $description: ',
-              style: const TextStyle(fontWeight: FontWeight.normal),
-            ),
-            TextSpan(
-              text: '${percentValue.toStringAsFixed(0)}%',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: _getColorForScore(percentValue / 100),
-              ),
-            ),
-          ],
-        ),
-      ),
-      backgroundColor: Colors.grey.shade200,
-    );
-  }
-  
-  // Get color based on score
-  Color _getColorForScore(double score) {
-    if (score >= 0.8) return Colors.green;
-    if (score >= 0.6) return Colors.orange;
-    return Colors.red;
-  }
-
-  // Build metrics display for comparison results
-  Widget _buildMetricsDisplay() {
-    if (_lastComparisonResult == null || 
-        !_lastComparisonResult!.containsKey('result')) {
-      return const SizedBox.shrink();
-    }
-    
-    final scoreData = _lastComparisonResult!['result'] as Map<String, dynamic>;
-    
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Detailed Analysis', 
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (scoreData.containsKey('processing_time_ms'))
-                Text(
-                  'Process: ${scoreData['processing_time_ms']}ms',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-            ],
-          ),
-          const Divider(),
-          
-          // Display accuracies if available
-          if (scoreData.containsKey('pitch_accuracy'))
-            _buildMetricRow('Pitch Accuracy', 
-              (scoreData['pitch_accuracy'] as double) * 100),
-          
-          if (scoreData.containsKey('timing_accuracy'))
-            _buildMetricRow('Timing Accuracy', 
-              (scoreData['timing_accuracy'] as double) * 100),
-              
-          if (scoreData.containsKey('onset_accuracy'))
-            _buildMetricRow('Onset Accuracy', 
-              (scoreData['onset_accuracy'] as double) * 100),
-              
-          if (scoreData.containsKey('duration_accuracy'))
-            _buildMetricRow('Duration Accuracy', 
-              (scoreData['duration_accuracy'] as double) * 100),
-          
-          // Divider before algorithm scores
-          if (scoreData.containsKey('individual_scores')) ...[
-            const Divider(),
-            Text(
-              'Algorithm Scores:',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            
-            // Algorithm scores as smaller items
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final entry in (scoreData['individual_scores'] as Map<String, dynamic>).entries)
-                  _buildAlgorithmChip(entry.key, (entry.value as double) * 100),
-              ],
-            ),
-          ],
-          
-          // Add Close button
-          const SizedBox(height: 16),
-          Center(
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Close Report'),
-            ),
-          ),
         ],
       ),
     );

@@ -9,7 +9,9 @@ class ServerMelodyMatcher {
   static final instance = ServerMelodyMatcher._();
 
   // URL of the deployed Flask server API
-  static const String _baseUrl = 'http://localhost:5002';
+  static const String _baseUrl = 'http://localhost:5001';
+  static const String _compareEndpoint = '/api/compare-melodies';
+  static const String _difficultyEndpoint = '/api/estimate-difficulty';
   
   // Default timeout duration
   static const Duration _requestTimeout = Duration(seconds: 5);
@@ -32,7 +34,7 @@ class ServerMelodyMatcher {
       
       // Make POST request to the API with timeout
       final response = await http.post(
-        Uri.parse('$_baseUrl/api/compare-melodies'),
+        Uri.parse('$_baseUrl$_compareEndpoint'),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -76,7 +78,7 @@ class ServerMelodyMatcher {
       
       // Make POST request to the API with timeout
       final response = await http.post(
-        Uri.parse('$_baseUrl/api/estimate-difficulty'),
+        Uri.parse('$_baseUrl$_difficultyEndpoint'),
         headers: {
           'Content-Type': 'application/json',
         },

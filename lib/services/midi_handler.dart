@@ -1,4 +1,6 @@
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -8,7 +10,7 @@ class MidiHandler {
       final ByteData data = await rootBundle.load('assets/midi/$fileName');
       return data.buffer.asUint8List();
     } catch (e) {
-      print('Error loading MIDI file: $e');
+      debugPrint('Error loading MIDI file: $e');
       return [];
     }
   }
@@ -19,10 +21,11 @@ class MidiHandler {
 
     final List<MidiNote> notes = [];
     int currentTime = 0;
-    
+
     // Basic MIDI parsing (this is a simplified version)
     for (int i = 0; i < midiData.length; i++) {
-      if (midiData[i] == 0x90) { // Note On event
+      if (midiData[i] == 0x90) {
+        // Note On event
         if (i + 2 < midiData.length) {
           final note = midiData[i + 1];
           final velocity = midiData[i + 2];
@@ -34,7 +37,8 @@ class MidiHandler {
             ));
           }
         }
-      } else if (midiData[i] == 0x80) { // Note Off event
+      } else if (midiData[i] == 0x80) {
+        // Note Off event
         if (i + 2 < midiData.length) {
           final note = midiData[i + 1];
           // Find the corresponding Note On and update its duration
@@ -48,14 +52,14 @@ class MidiHandler {
       }
       currentTime++;
     }
-    
+
     return notes;
   }
 
   static Future<void> saveMidiFile(List<MidiNote> notes, String fileName) async {
     final directory = await getApplicationDocumentsDirectory();
     final file = File('${directory.path}/$fileName');
-    
+
     // Create MIDI file header
     final List<int> midiData = [
       0x4D, 0x54, 0x68, 0x64, // MThd
@@ -111,4 +115,4 @@ class MidiNote {
     required this.startTime,
     this.duration = 0,
   });
-} 
+}

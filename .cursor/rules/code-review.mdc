@@ -1,0 +1,133 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+3. lib/main.dart
+Purpose: Entry point for the Flutter application, setting up the app structure, navigation, Firebase initialization, and global service providers.
+Improvement Notes:
+Remove the commented-out test main function
+Add error handling for Firebase initialization failure
+Extract the LandingPage into its own file
+Use a more robust routing system like go_router
+Add comments explaining the purpose of the MainAppShell structure
+Consider adding a splash screen while Firebase initializes
+Add support for deep linking for better navigation integration
+4. lib/widgets/piano_keyboard.dart
+Purpose: A reusable widget that renders an interactive piano keyboard with octave selection, note highlighting, and multi-platform sound playback.
+Improvement Notes:
+Split the large PianoKeyboardState class into smaller components
+Extract web audio initialization to a separate service
+Add method to programmatically scroll to a specific note
+Implement keyboard input support for testing without touch/mouse
+Add accessibility features for screen readers
+Optimize note rendering to improve performance for larger keyboards
+Add visual feedback for errors during note playback
+Implement horizontal dragging for rapid note playing
+5. lib/services/server_melody_matcher.dart
+Purpose: Service that connects to the Flask server for melody comparison and difficulty estimation, with fallback mechanisms when the server is unavailable.
+Improvement Notes:
+Make the server URL configurable via environment variables
+Add reconnection logic with exponential backoff
+Implement caching for recent comparison results
+Add more sophisticated offline comparison algorithms
+Include request cancelation for in-flight requests
+Add proper serialization/deserialization validation
+Enhance error reporting with more specific error types
+Consider implementing batch processing for multiple melody comparisons
+6. lib/screens/computer_mode_screen.dart
+Purpose: Game screen where the computer plays a melody that the player must repeat, with scoring based on accuracy of the performance.
+Improvement Notes:
+Extract the comparison logic and game state management to a dedicated service
+Break up the large _ComputerModeScreenState class into smaller components
+Add animations for better visual feedback during gameplay
+Implement different difficulty levels with user selection
+Add progress indicators for melody loading and analysis
+Improve error handling with user-friendly messages
+Add retry mechanisms for server communication failures
+Implement state persistence so game progress isn't lost on hot reload
+7. lib/services/midi_service.dart (based on imports and usage)
+Purpose: Handles MIDI note playback across different platforms with fallback mechanisms.
+Improvement Notes:
+Add documentation for platform-specific behavior
+Implement proper resource cleanup in dispose method
+Add caching for frequently played notes to improve performance
+Provide more detailed error reporting for playback issues
+Support for custom sound fonts or instrument selection
+Add volume control for note playback
+Implement note sustain/release timing for more realistic piano sound
+Consider using isolates for audio processing on mobile platforms
+8. lib/services/multiplayer_service.dart
+Purpose: Manages multiplayer game state and communication with the WebSocket server.
+Improvement Notes:
+Implement retry logic for dropped connections
+Add proper state management with clearly defined state transitions
+Use enum types instead of strings for game states
+Implement proper cleanup in dispose method
+Add heartbeat/ping mechanism to detect connection issues
+Improve error handling with user-friendly messages
+Use a state machine pattern for game state management
+Add timeout handling for player actions
+9. lib/models/game_room.dart
+Purpose: Defines the data models for multiplayer game rooms, including Player, Melody, and GameRoom classes, with methods for managing game state.
+Improvement Notes:
+Add validation for input parameters in constructors
+Use sealed classes instead of enums for better type safety in GameState
+Add more documentation for methods and properties
+Implement equality and hashCode for proper comparison
+Add serialization/deserialization error handling
+Consider using freezed package for immutable data classes
+Add logging for state changes
+10. lib/services/melody_matcher.dart
+Purpose: Client-side implementation of melody matching algorithms for offline comparison of melodies when the server is unavailable.
+Improvement Notes:
+The random melody generation uses DateTime.now() which could produce the same notes if called quickly - replace with a better RNG
+Add documentation for the various scoring methods
+Consider using more sophisticated algorithms to better match the server-side algorithms
+Add unit tests with example melodies
+Extract the hard-coded score values into configurable constants
+Implement more timing accuracy metrics similar to the server
+Add better note-by-note comparison for detailed feedback
+11. lib/services/midi_handler.dart
+Purpose: Handles loading, parsing, and saving MIDI files, with a basic MIDI note representation class.
+Improvement Notes:
+The MIDI file parsing is too simplified and will not work for most real MIDI files
+Add proper error handling for malformed MIDI files
+Improve the MIDI file creation to properly handle variable-length values
+Add support for multiple tracks and MIDI channels
+Consider using an existing MIDI library instead of reimplementing
+Move the MidiNote class to its own file under models/
+Add validation for MIDI note numbers (0-127 range)
+12. lib/services/native_audio.dart
+Purpose: Provides cross-platform audio playback using native methods when available, with web support via JavaScript interop.
+Improvement Notes:
+Extract the JavaScript code into a separate asset file rather than embedding in Dart
+Add proper cleanup for Web Audio API resources
+Implement volume control for better user experience
+Add proper audio buffer caching to improve performance
+Add error handling for unsupported platforms
+Consider using audio sprites for more efficient loading
+Add proper feature detection for Web Audio API
+Implement stereo panning for spatial audio effects
+13. lib/services/websocket_service.dart
+Purpose: Manages Socket.IO connections to the server for multiplayer functionality, handling connection, events, and room management.
+Improvement Notes:
+Add comprehensive reconnection logic for dropped connections
+Implement connection state management with proper lifecycle handling
+Extract the event handling into separate methods for better readability
+Add timeout handling for all server operations
+Implement proper event disposal for all stream controllers
+Add debug mode for logging events
+Implement ping/pong for connection health monitoring
+Consider using a state machine pattern for connection states
+14. lib/screens/multiplayer_room_screen.dart
+Purpose: UI for multiplayer game rooms, handling recording, playback, and interactive gameplay between players.
+Improvement Notes:
+Extract the note handling logic to a separate service
+Split the large state class into smaller components
+Add visual feedback for active players and turn changes
+Implement loading states for server operations
+Add better error recovery for failed submissions
+Improve the replay visualization with animation
+Add sound effects for game events
+Implement proper keyboard input support for desktop

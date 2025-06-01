@@ -1,20 +1,20 @@
 PODS:
   - audio_session (0.0.1):
-    - FlutterMacOS
+    - Flutter
   - Firebase/CoreOnly (10.25.0):
     - FirebaseCore (= 10.25.0)
   - firebase_core (2.32.0):
-    - Firebase/CoreOnly (~> 10.25.0)
-    - FlutterMacOS
+    - Firebase/CoreOnly (= 10.25.0)
+    - Flutter
   - FirebaseCore (10.25.0):
     - FirebaseCoreInternal (~> 10.0)
     - GoogleUtilities/Environment (~> 7.12)
     - GoogleUtilities/Logger (~> 7.12)
   - FirebaseCoreInternal (10.29.0):
     - "GoogleUtilities/NSData+zlib (~> 7.8)"
+  - Flutter (1.0.0)
   - flutter_midi_pro (0.0.1):
-    - FlutterMacOS
-  - FlutterMacOS (1.0.0)
+    - Flutter
   - GoogleUtilities/Environment (7.13.3):
     - GoogleUtilities/Privacy
     - PromisesObjC (< 3.0, >= 1.2)
@@ -36,13 +36,13 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
-  - audio_session (from `Flutter/ephemeral/.symlinks/plugins/audio_session/macos`)
-  - firebase_core (from `Flutter/ephemeral/.symlinks/plugins/firebase_core/macos`)
-  - flutter_midi_pro (from `Flutter/ephemeral/.symlinks/plugins/flutter_midi_pro/macos`)
-  - FlutterMacOS (from `Flutter/ephemeral`)
-  - just_audio (from `Flutter/ephemeral/.symlinks/plugins/just_audio/darwin`)
-  - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
-  - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
+  - audio_session (from `.symlinks/plugins/audio_session/ios`)
+  - firebase_core (from `.symlinks/plugins/firebase_core/ios`)
+  - Flutter (from `Flutter`)
+  - flutter_midi_pro (from `.symlinks/plugins/flutter_midi_pro/ios`)
+  - just_audio (from `.symlinks/plugins/just_audio/darwin`)
+  - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
+  - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
 
 SPEC REPOS:
   trunk:
@@ -54,34 +54,34 @@ SPEC REPOS:
 
 EXTERNAL SOURCES:
   audio_session:
-    :path: Flutter/ephemeral/.symlinks/plugins/audio_session/macos
+    :path: ".symlinks/plugins/audio_session/ios"
   firebase_core:
-    :path: Flutter/ephemeral/.symlinks/plugins/firebase_core/macos
+    :path: ".symlinks/plugins/firebase_core/ios"
+  Flutter:
+    :path: Flutter
   flutter_midi_pro:
-    :path: Flutter/ephemeral/.symlinks/plugins/flutter_midi_pro/macos
-  FlutterMacOS:
-    :path: Flutter/ephemeral
+    :path: ".symlinks/plugins/flutter_midi_pro/ios"
   just_audio:
-    :path: Flutter/ephemeral/.symlinks/plugins/just_audio/darwin
+    :path: ".symlinks/plugins/just_audio/darwin"
   path_provider_foundation:
-    :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
+    :path: ".symlinks/plugins/path_provider_foundation/darwin"
   shared_preferences_foundation:
-    :path: Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin
+    :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
 
 SPEC CHECKSUMS:
-  audio_session: eaca2512cf2b39212d724f35d11f46180ad3a33e
+  audio_session: 9bb7f6c970f21241b19f5a3658097ae459681ba0
   Firebase: 0312a2352584f782ea56f66d91606891d4607f06
-  firebase_core: e324fc945c2abe77065357fd9c8dd6853d8a88a5
+  firebase_core: 3b49a055ff54114cae400581c13671fe53936c36
   FirebaseCore: 7ec4d0484817f12c3373955bc87762d96842d483
   FirebaseCoreInternal: df84dd300b561c27d5571684f389bf60b0a5c934
-  flutter_midi_pro: 4c5d8ef49905c7d72d7dc94f5f110a0137d95252
-  FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
+  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  flutter_midi_pro: 6e3aa3b3bc349ecbb670ea800edc60ee174b2784
   GoogleUtilities: ea963c370a38a8069cc5f7ba4ca849a60b6d7d15
   just_audio: 4e391f57b79cad2b0674030a00453ca5ce817eed
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
 
-PODFILE CHECKSUM: 236401fc2c932af29a9fcf0e97baeeb2d750d367
+PODFILE CHECKSUM: 819463e6a0290f5a72f145ba7cde16e8b6ef0796
 
 COCOAPODS: 1.16.2

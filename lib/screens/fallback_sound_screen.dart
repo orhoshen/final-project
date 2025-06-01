@@ -4,7 +4,6 @@ import 'dart:developer' as developer;
 import 'dart:async';
 import 'package:final_project/services/js_stub.dart' if (dart.library.js) 'dart:js' as js;
 import 'package:flutter/foundation.dart';
-import 'dart:math';
 
 class FallbackSoundScreen extends StatefulWidget {
   const FallbackSoundScreen({super.key});

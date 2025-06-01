@@ -24,46 +24,105 @@ A piano UI game application built with Flutter (client-side) and Python Flask (s
 - `algorithms/` - Python algorithms for melody matching
 - `static/` - Static files served by Flask
 
-## Setup Instructions
+## Getting Started
+
+This project is a starting point for a Flutter application.
+
+A few resources to get you started if this is your first Flutter project:
+
+*   [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+*   [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/G), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
+
+## Project Setup and Running
+
+This project consists of a Flutter frontend and a Python Flask backend.
 
 ### Prerequisites
 
-- Flutter SDK (version 3.3+)
-- Dart SDK
-- Python 3.8+
-- Firebase account (optional for full functionality)
+*   Flutter SDK installed (check with `flutter doctor`)
+*   Python 3.x installed
+*   A virtual environment tool for Python (e.g., `venv`)
+*   Git for version control
 
-### Flutter Setup
+### 1. Clone the Repository
 
-1. Install dependencies:
-   ```
-   flutter pub get
-   ```
+```bash
+git clone https://github.com/orhoshen/final-project.git
+cd final-project
+```
 
-2. Run the app on your preferred platform:
-   ```
-   flutter run -d chrome  # For web
-   flutter run            # For default device
-   ```
+### 2. Setup Python Backend Server
 
-### Flask Server Setup
+The Python server is located in the `final-project-server` directory.
 
-1. Create a virtual environment (optional but recommended):
-   ```
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+1.  **Navigate to the server directory:**
+    ```bash
+    cd final-project-server
+    ```
+2.  **Create and activate a Python virtual environment:**
+    ```bash
+    python3 -m venv .venv  # Create a virtual environment (if not already done)
+    source .venv/bin/activate # On macOS/Linux
+    # .venv\\Scripts\\activate  # On Windows
+    ```
+3.  **Install Python dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+4.  **Run the Flask server (using `simple_app.py`):**
+    ```bash
+    PORT=5001 python3 simple_app.py
+    ```
+    The server will start on `http://localhost:5001`. You should see output indicating it\'s running.
+    This `simple_app.py` includes the core melody matching and Socket.IO functionalities needed for the app.
 
-2. Install required packages:
-   ```
-   pip install -r requirements.txt
-   ```
+    *(Note: There is also an `app.py` which contains more extensive room management logic that is currently a work in progress and might have unresolved import issues if run directly. For current functionality, use `simple_app.py`.)*
 
-3. Run the server:
-   ```
-   python app.py
-   ```
-   The server will run on port 5001 by default (changed from 5000 to avoid conflicts with AirPlay on macOS).
+### 3. Run Flutter Frontend (Client)
+
+1.  **Open a new terminal window/tab.**
+2.  **Navigate to the project root directory (if you are in `final-project-server`, go one level up):**
+    ```bash
+    cd .. 
+    ```
+    (Ensure you are in the `final-project` directory, which contains `pubspec.yaml`)
+3.  **Get Flutter dependencies:**
+    ```bash
+    flutter pub get
+    ```
+4.  **Run the Flutter app (e.g., on Chrome):**
+    ```bash
+    flutter run -d chrome
+    ```
+    The application should open in your Chrome browser and connect to the server.
+
+### Server Endpoints
+
+The server exposes the following key endpoints:
+*   `GET /`: Welcome message
+*   `GET /api/health`: Health check
+*   `POST /api/estimate-difficulty`: Estimates melody difficulty.
+    *   Payload: `{"melody": [60, 62, 64, 65]}`
+*   `POST /api/compare-melodies`: Compares two melodies.
+    *   Payload: `{"melody1": [], "melody2": [], "timings1": [], "timings2": [], "durations1": [], "durations2": []}`
+*   `GET /static/melodies.json`: Serves a list of sample melodies.
+*   Socket.IO endpoints are available at the root for real-time communication.
+
+### Troubleshooting
+*   **Port in use:** If you see an "Address already in use" error for port 5001 when starting the server, ensure no other instances of the server (or other applications) are running on that port. You can kill existing processes using:
+    ```bash
+    # For macOS/Linux
+    lsof -ti:5001 | xargs kill -9
+    ```
+*   **Flutter Doctor:** If the Flutter app has issues, run `flutter doctor` to diagnose common problems with your Flutter setup.
+*   **Server not connecting:** Double-check that the server is running in its own terminal window and that the Flutter app is configured to connect to `http://localhost:5001` (this is the default in the current codebase).
+*   **Python/Pip commands:** If `python3` or `pip3` don\'t work, try `python` or `pip` respectively, depending on your system\'s Python installation and PATH configuration.
+
+## About
 
 ## API Endpoints
 
