@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../services/midi_service.dart'; // Simplified to use the existing service
-import '../services/websocket_service.dart';
+import '../services/server_manager.dart';
 
 class ServerConnectionTestScreen extends StatefulWidget {
   const ServerConnectionTestScreen({super.key});
@@ -12,116 +10,60 @@ class ServerConnectionTestScreen extends StatefulWidget {
 }
 
 class _ServerConnectionTestScreenState extends State<ServerConnectionTestScreen> {
-  final MidiService _midiService = MidiService();
-  bool _isConnecting = false;
-  String _connectionStatus = 'Not connected';
+  String _connectionStatus = 'Press the button to test connection.';
+  bool _isConnected = false;
   String _testStatus = '';
+  bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _midiService.initialize();
-  }
-
-  @override
-  void dispose() {
-    _midiService.dispose();
-    super.dispose();
-  }
-
-  Future<void> _connectToServer() async {
+  Future<void> _handleTestConnection() async {
     setState(() {
-      _isConnecting = true;
-      _connectionStatus = 'Connecting...';
+      _isLoading = true;
+      _connectionStatus = 'Testing...';
     });
 
     try {
-      final websocketService = Provider.of<WebSocketService>(context, listen: false);
-      final success = await websocketService.connect();
-
-      setState(() {
-        _isConnecting = false;
-        _connectionStatus = success ? 'Connected to server' : 'Connection failed';
-      });
-
-      if (success) {
-        // Try to create a testing room
-        final createRoomSuccess = await websocketService.createRoom('TestUser');
+      final success = await ServerManager.instance.testConnection();
+      if (mounted) {
         setState(() {
-          _testStatus += createRoomSuccess ? '• Created test room successfully\n' : '• Failed to create test room\n';
+          _isConnected = success;
+          _connectionStatus = success ? 'Connection successful!' : 'Connection failed.';
         });
       }
     } catch (e) {
-      setState(() {
-        _isConnecting = false;
-        _connectionStatus = 'Error: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _isConnected = false;
+          _connectionStatus = 'Connection failed: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  Future<void> _testCompareMelodies() async {
+  Future<void> _testCreateRoom() async {
     setState(() {
-      _testStatus += '• Testing melody comparison API...\n';
+      _testStatus += '• Testing room creation...\n';
     });
-
-    try {
-      // Using the server melody matcher to compare melodies
-      // This is a simplified version using our existing components
-
+    if (!_isConnected) {
       setState(() {
-        _testStatus += '• Testing comparison between [C, D, E] and [C, D, D#]\n';
-        _testStatus += '• Test implementation is simplified for demo\n';
-        _testStatus += '• In a real setup, this would call the server API\n';
+        _testStatus += '• Cannot create room: Not connected to server.\n';
       });
-
-      await Future.delayed(const Duration(milliseconds: 500));
-
+      return;
+    }
+    try {
+      final result = await ServerManager.instance.createRoom('TestUser');
       setState(() {
-        _testStatus += '• Melody comparison completed (simulated)\n';
-        _testStatus += '• Similarity score: 0.78 (simulated)\n';
+        _testStatus += '• Room created successfully: ${result['room_code']}\n';
       });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _testStatus += '• Error: $e\n';
-        });
-      }
-    }
-  }
-
-  Future<void> _testAudioPlayback() async {
-    if (mounted) {
       setState(() {
-        _testStatus += '• Testing audio playback...\n';
+        _testStatus += '• Failed to create room: $e\n';
       });
-    }
-
-    try {
-      for (int note = 60; note <= 72; note += 2) {
-        // Try to play the note
-        if (mounted) {
-          setState(() {
-            _testStatus += '• Playing note $note...\n';
-          });
-        }
-
-        await _midiService.playMidiNote(note);
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-
-      if (mounted) {
-        setState(() {
-          _testStatus += '• Audio playback test completed\n';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _testStatus += '• Audio error: $e\n';
-          _testStatus += '• This is likely due to browser restrictions.\n';
-          _testStatus += '• Try running on a mobile device or desktop instead.\n';
-        });
-      }
     }
   }
 
@@ -146,18 +88,23 @@ class _ServerConnectionTestScreenState extends State<ServerConnectionTestScreen>
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       'Connection Status:',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
-                    Text(_connectionStatus),
+                    Text(
+                      _connectionStatus,
+                      style: TextStyle(color: _isConnected ? Colors.green : Colors.red),
+                    ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: _isConnecting ? null : _connectToServer,
-                      child: _isConnecting ? const CircularProgressIndicator() : const Text('Connect to Server'),
+                      onPressed: _isLoading ? null : _handleTestConnection,
+                      child: _isLoading
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Text('Test Connection'),
                     ),
                   ],
                 ),
@@ -168,7 +115,7 @@ class _ServerConnectionTestScreenState extends State<ServerConnectionTestScreen>
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       'API Tests:',
@@ -176,21 +123,17 @@ class _ServerConnectionTestScreenState extends State<ServerConnectionTestScreen>
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: _testCompareMelodies,
-                      child: const Text('Test Melody Comparison API'),
+                      onPressed: _testCreateRoom,
+                      child: const Text('Test Create Room'),
                     ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: _testAudioPlayback,
-                      child: const Text('Test Audio Playback'),
-                    ),
+                    // Other test buttons can be re-enabled here as needed
                     const SizedBox(height: 8),
                     ElevatedButton(
                       onPressed: _clearStatus,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                       ),
-                      child: const Text('Clear Status'),
+                      child: const Text('Clear Log'),
                     ),
                   ],
                 ),
@@ -210,12 +153,13 @@ class _ServerConnectionTestScreenState extends State<ServerConnectionTestScreen>
                     const SizedBox(height: 8),
                     Container(
                       decoration: BoxDecoration(
+                        color: Colors.grey[200],
                         border: Border.all(color: Colors.grey),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       padding: const EdgeInsets.all(8.0),
                       width: double.infinity,
-                      height: 300,
+                      height: 200,
                       child: SingleChildScrollView(
                         child: Text(_testStatus.isEmpty ? 'No tests run yet' : _testStatus),
                       ),

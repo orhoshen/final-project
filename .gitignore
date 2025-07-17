@@ -66,4 +66,21 @@ GoogleService-Info.plist
 # Linux
 **/linux/flutter/generated_plugin_registrant.cc
 **/linux/flutter/generated_plugin_registrant.h
-**/linux/flutter/generated_plugins.cmake 
+**/linux/flutter/generated_plugins.cmake
+
+# Server-side files (not part of client repo)
+final-project-server/
+test_*.py
+DEPLOYMENT_SUMMARY.md
+Cloud-Run-Server-setup.md
+SERVER_MIGRATION.md
+*.log
+*.pid
+
+# Development temporary files
+flutter_output.log
+requirements.txt
+switch_env.sh
+
+# Cursor IDE files
+.cursor/

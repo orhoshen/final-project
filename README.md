@@ -1,52 +1,53 @@
-# Piano Game
+# 🎹 Piano Game - Real-time Multiplayer Piano Game
 
-A piano UI game application built with Flutter (client-side) and Python Flask (server-side).
+A sophisticated piano UI game application built with Flutter (client-side) and Python Flask (server-side) with real-time multiplayer capabilities.
 
-## Features
+## ✨ Features
 
-- Interactive piano keyboard UI
-- MIDI playback capabilities
-- Multiple game modes (player mode, computer mode)
-- Melody matching algorithms
-- Firebase integration
-- Audio processing and playback
+- **Interactive Piano Keyboard**: Responsive piano UI with visual feedback
+- **Real-time Multiplayer**: WebSocket-powered multiplayer with <500ms latency
+- **Multiple Game Modes**: 
+  - Computer Mode: Play against AI
+  - Player Mode: Local multiplayer
+  - Multiplayer Mode: Online real-time multiplayer
+- **Advanced Melody Matching**: Sophisticated algorithms for melody comparison
+- **MIDI Playback**: Full MIDI support with custom soundfonts
+- **Audio Processing**: High-quality audio playback and recording
+- **Cloud Deployment**: Production-ready deployment on Google Cloud Run
 
-## Project Structure
+## 🏗️ Project Structure
 
 - `lib/` - Flutter client application
-  - `screens/` - UI screens
-  - `services/` - Business logic and services
+  - `screens/` - UI screens for different game modes
+  - `services/` - Business logic and WebSocket services
   - `widgets/` - Reusable UI components
 - `assets/` - Audio files and resources
   - `piano_notes/` - Individual piano note audio files
-  - `soundfonts/` - Soundfont files for MIDI playback
+  - `soundfonts/` - Soundfont files for MIDI playbook
   - `midi/` - MIDI files organized by difficulty
-- `algorithms/` - Python algorithms for melody matching
-- `static/` - Static files served by Flask
+- `static/` - Static files and sample melodies
+- `final-project-server/` - Python Flask server with WebSocket support
 
-## Getting Started
+## 🌐 Server Architecture
 
-This project is a starting point for a Flutter application.
+The server provides a hybrid HTTP + WebSocket architecture:
 
-A few resources to get you started if this is your first Flutter project:
+**Production Server**: https://piano-game-server-1065551791970.us-central1.run.app
 
-*   [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-*   [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+**Server Features**:
+- RESTful API for melody comparison and room management
+- WebSocket support for real-time multiplayer gameplay
+- Sophisticated melody matching algorithms with timing analysis
+- Google Cloud Run deployment with auto-scaling
+- Docker containerization for consistent deployment
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/G), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
-## Project Setup and Running
-
-This project consists of a Flutter frontend and a Python Flask backend.
+## 🚀 Quick Start
 
 ### Prerequisites
 
-*   Flutter SDK installed (check with `flutter doctor`)
-*   Python 3.x installed
-*   A virtual environment tool for Python (e.g., `venv`)
-*   Git for version control
+- **Flutter SDK**: Install from [flutter.dev](https://flutter.dev/docs/get-started/install)
+- **Git**: For version control
+- **Chrome**: For web development and testing
 
 ### 1. Clone the Repository
 
@@ -55,82 +56,150 @@ git clone https://github.com/orhoshen/final-project.git
 cd final-project
 ```
 
-### 2. Setup Python Backend Server
+### 2. Install Dependencies
 
-The Python server is located in the `final-project-server` directory.
+```bash
+flutter pub get
+```
 
-1.  **Navigate to the server directory:**
-    ```bash
-    cd final-project-server
-    ```
-2.  **Create and activate a Python virtual environment:**
-    ```bash
-    python3 -m venv .venv  # Create a virtual environment (if not already done)
-    source .venv/bin/activate # On macOS/Linux
-    # .venv\\Scripts\\activate  # On Windows
-    ```
-3.  **Install Python dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-4.  **Run the Flask server (using `simple_app.py`):**
-    ```bash
-    PORT=5001 python3 simple_app.py
-    ```
-    The server will start on `http://localhost:5001`. You should see output indicating it\'s running.
-    This `simple_app.py` includes the core melody matching and Socket.IO functionalities needed for the app.
+### 3. Run the Application
 
-    *(Note: There is also an `app.py` which contains more extensive room management logic that is currently a work in progress and might have unresolved import issues if run directly. For current functionality, use `simple_app.py`.)*
+The application is pre-configured to use the production server hosted on Google Cloud Run.
 
-### 3. Run Flutter Frontend (Client)
+```bash
+# Run on Chrome (recommended for development)
+flutter run -d chrome
 
-1.  **Open a new terminal window/tab.**
-2.  **Navigate to the project root directory (if you are in `final-project-server`, go one level up):**
-    ```bash
-    cd .. 
-    ```
-    (Ensure you are in the `final-project` directory, which contains `pubspec.yaml`)
-3.  **Get Flutter dependencies:**
-    ```bash
-    flutter pub get
-    ```
-4.  **Run the Flutter app (e.g., on Chrome):**
-    ```bash
-    flutter run -d chrome
-    ```
-    The application should open in your Chrome browser and connect to the server.
+# Or run on other platforms
+flutter run -d android  # For Android
+flutter run -d ios      # For iOS
+flutter run -d macos    # For macOS
+flutter run -d windows  # For Windows
+```
 
-### Server Endpoints
+The app will automatically connect to the production server at:
+`https://piano-game-server-1065551791970.us-central1.run.app`
 
-The server exposes the following key endpoints:
-*   `GET /`: Welcome message
-*   `GET /api/health`: Health check
-*   `POST /api/estimate-difficulty`: Estimates melody difficulty.
-    *   Payload: `{"melody": [60, 62, 64, 65]}`
-*   `POST /api/compare-melodies`: Compares two melodies.
-    *   Payload: `{"melody1": [], "melody2": [], "timings1": [], "timings2": [], "durations1": [], "durations2": []}`
-*   `GET /static/melodies.json`: Serves a list of sample melodies.
-*   Socket.IO endpoints are available at the root for real-time communication.
+## 🐳 Docker Development (Optional)
 
-### Troubleshooting
-*   **Port in use:** If you see an "Address already in use" error for port 5001 when starting the server, ensure no other instances of the server (or other applications) are running on that port. You can kill existing processes using:
-    ```bash
-    # For macOS/Linux
-    lsof -ti:5001 | xargs kill -9
-    ```
-*   **Flutter Doctor:** If the Flutter app has issues, run `flutter doctor` to diagnose common problems with your Flutter setup.
-*   **Server not connecting:** Double-check that the server is running in its own terminal window and that the Flutter app is configured to connect to `http://localhost:5001` (this is the default in the current codebase).
-*   **Python/Pip commands:** If `python3` or `pip3` don\'t work, try `python` or `pip` respectively, depending on your system\'s Python installation and PATH configuration.
+If you want to run the server locally using Docker:
 
-## About
+### 1. Build the Docker Image
 
-## API Endpoints
+```bash
+cd final-project-server
+docker build -t piano-game-server .
+```
 
-- `/api/health` - Health check endpoint
-- `/api/compare-melodies` - Compare two melodies for similarity
-- `/api/estimate-difficulty` - Estimate difficulty of a melody
-- `/api/soundfonts` - List available soundfont files
-- `/api/piano_notes` - List available piano note files
+### 2. Run the Container
+
+```bash
+docker run -p 5001:8080 piano-game-server
+```
+
+### 3. Switch to Local Development
+
+```bash
+# Create local environment file
+echo "FLASK_SERVER_URL=http://localhost:5001" > .env
+
+# Run the Flutter app
+flutter run -d chrome
+```
+
+## 🌍 Environment Configuration
+
+The app uses environment variables for server configuration:
+
+### Production (Default)
+- Uses Google Cloud Run server
+- WebSocket support enabled
+- Auto-scaling and high availability
+
+### Local Development
+- Uses local server (requires Docker or manual setup)
+- Useful for server development and testing
+
+### Switch Environments
+
+Create a `.env` file in the root directory:
+
+```bash
+# For production (default)
+FLASK_SERVER_URL=https://piano-game-server-1065551791970.us-central1.run.app
+
+# For local development
+FLASK_SERVER_URL=http://localhost:5001
+```
+
+## 🎮 Game Modes
+
+### 1. Computer Mode
+- Play against AI
+- Practice melody matching
+- Difficulty-based scoring
+
+### 2. Player Mode
+- Local multiplayer (same device)
+- Turn-based gameplay
+- Performance analytics
+
+### 3. Multiplayer Mode
+- Real-time online multiplayer
+- WebSocket-powered communication
+- <500ms latency for competitive gameplay
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+1. **Server Connection Failed**
+   ```bash
+   # Check server status
+   curl https://piano-game-server-1065551791970.us-central1.run.app/api/health
+   
+   # Should return: {"status": "healthy", "socketio": "enabled"}
+   ```
+
+2. **Flutter Doctor Issues**
+   ```bash
+   flutter doctor
+   # Fix any issues reported
+   ```
+
+3. **WebSocket Connection Problems**
+   - Ensure you're using Chrome for web development
+   - Check that the server supports WebSocket connections
+   - Verify firewall settings don't block WebSocket connections
+
+4. **Build Errors**
+   ```bash
+   # Clean and rebuild
+   flutter clean
+   flutter pub get
+   flutter build web
+   ```
+
+### Debug Mode
+
+For detailed debugging information:
+
+```bash
+# Run with verbose logging
+flutter run -d chrome --verbose
+
+# Or build with debug info
+flutter build web --debug
+```
+
+## Architecture
+
+This application follows a client-server architecture:
+
+- **Client**: Flutter application (this repository)
+- **Server**: Python Flask server (separate repository)
+
+The client communicates with the server via HTTP REST API and WebSocket connections for real-time multiplayer functionality.
 
 ## Supported Platforms
 
@@ -149,3 +218,58 @@ The server exposes the following key endpoints:
 - Use repository pattern for data access
 - Follow RESTful API design for Flask endpoints
 - Implement proper error handling
+
+# Piano Game - Android Build Troubleshooting Report
+
+## Date: May 21, 2024
+
+## Recent Updates (Chrome/Web Build)
+
+### Date: Current
+
+#### 1. Unified Analytics Report
+- Implemented consistent analytics dialog across all game modes (Computer, Player, Multiplayer)
+- Dialog never auto-dismisses - stays open until user clicks a button
+- Added tracking for:
+  - **response_time_ms**: Client → Server → Client round-trip time (includes matching algorithm)
+  - **matching_time_nocom_ms**: Server-side pure matching latency (excluding communication overhead)
+- Analytics data is displayed using the shared `AnalysisReportWidget` component
+
+#### 2. UI & Flow Improvements
+- **End Game Button**: Added to all game modes, navigates directly to Main Menu
+- **Next Round Button**: Properly swaps active player and starts the next turn in Player mode
+- **Round Logic**: Changed to best-of-3 per player (6 total rounds) for equal turns
+- **Multiplayer UI**: Updated to match the look and feel of local Player mode
+
+#### 3. Melody Bank Expansion
+- Expanded from 8 to 20+ classical melodies in `static/melodies.json`
+- Added well-known pieces including:
+  - Ode to Joy (Beethoven)
+  - Für Elise (Beethoven)
+  - Eine kleine Nachtmusik (Mozart)
+  - Spring from Four Seasons (Vivaldi)
+  - Moonlight Sonata (Beethoven)
+  - Prelude in C Major (Bach)
+  - Gymnopédie No.1 (Satie)
+  - The Blue Danube (Strauss)
+  - Swan Lake Theme (Tchaikovsky)
+  - Minuet in G (Bach)
+  - Ave Maria (Schubert)
+  - Turkish March (Mozart)
+  - Morning Mood (Grieg)
+- All melodies limited to ≤ 20 notes for appropriate game difficulty
+
+#### 4. Repeat Button Feature
+- Added Repeat button to all game modes
+- Allows players to replay the reference melody
+- Limited to 2 uses per round
+- Shows remaining repeat count
+- Disabled after maximum uses reached
+
+#### 5. Technical Improvements
+- Fixed all 24 analyzer warnings (down to 0)
+- Updated deprecated Color APIs to use `withValues(alpha:)`
+- Replaced `dart:html` with modern `dart:js_interop` and `package:web`
+- Replaced print statements with `debugPrint()`
+- Fixed unused variables and imports
+- Improved code organization and consistency

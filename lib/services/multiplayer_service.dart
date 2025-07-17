@@ -4,16 +4,17 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/game_room.dart';
-import 'websocket_service.dart';
+import 'enhanced_websocket_service.dart';
+import 'server_manager.dart';
 
 /// Service for managing multiplayer game session
 class MultiplayerService extends ChangeNotifier {
-  final WebSocketService _websocketService;
+  final EnhancedWebSocketService _websocketService;
   GameRoom? _currentRoom;
   String _playerName = '';
   bool _isJoining = false;
   bool _isCreating = false;
-  
+
   // Stream subscriptions
   StreamSubscription? _roomUpdateSubscription;
   StreamSubscription? _playerJoinedSubscription;
@@ -23,8 +24,15 @@ class MultiplayerService extends ChangeNotifier {
   StreamSubscription? _scoreUpdateSubscription;
 
   MultiplayerService(this._websocketService) {
-    _setupListeners();
     _loadPlayerName();
+  }
+
+  /// Initialize the service and setup listeners.
+  /// This should be called after the websocket is connected.
+  void initialize() {
+    // Ensure listeners are only set up once.
+    if (_roomUpdateSubscription != null) return;
+    _setupListeners();
   }
 
   // Getters
@@ -34,10 +42,10 @@ class MultiplayerService extends ChangeNotifier {
   bool get isCreating => _isCreating;
   bool get isConnected => _websocketService.isConnected;
   bool get isInRoom => _currentRoom != null;
-  
+
   // Add a getter for playerId
   String get playerId => _websocketService.playerId;
-  
+
   // Check if the current user is the active player
   bool get isActivePlayer {
     if (_currentRoom == null || _websocketService.playerId.isEmpty) return false;
@@ -54,7 +62,7 @@ class MultiplayerService extends ChangeNotifier {
   Future<void> setPlayerName(String name) async {
     _playerName = name;
     notifyListeners();
-    
+
     // Save to persistent storage
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('player_name', name);
@@ -75,6 +83,8 @@ class MultiplayerService extends ChangeNotifier {
   }
 
   /// Connect to the WebSocket server
+  // This is now handled by the provider, the service is expected to be connected.
+  /*
   Future<bool> connect({String? serverUrl}) async {
     if (serverUrl != null) {
       _websocketService.setServerUrl(serverUrl);
@@ -82,6 +92,7 @@ class MultiplayerService extends ChangeNotifier {
     
     return await _websocketService.connect();
   }
+  */
 
   /// Disconnect from the WebSocket server
   Future<void> disconnect() async {
@@ -92,62 +103,74 @@ class MultiplayerService extends ChangeNotifier {
 
   /// Create a new game room
   Future<bool> createRoom() async {
+    debugPrint('MultiplayerService.createRoom() called');
+    debugPrint('Connected: ${_websocketService.isConnected}, Player name: $_playerName');
+    
     if (!_websocketService.isConnected || _playerName.isEmpty) {
+      debugPrint('Cannot create room: not connected or no player name');
       return false;
     }
-    
+
     _isCreating = true;
     notifyListeners();
-    
+
+    debugPrint('Calling websocket service createRoom...');
     final result = await _websocketService.createRoom(_playerName);
-    
+    debugPrint('createRoom result: $result');
+
     _isCreating = false;
     notifyListeners();
-    
+
     return result;
   }
 
   /// Join an existing game room
   Future<bool> joinRoom(String roomId) async {
+    debugPrint('MultiplayerService.joinRoom() called with roomId: $roomId');
+    debugPrint('Connected: ${_websocketService.isConnected}, Player name: $_playerName');
+    
     if (!_websocketService.isConnected || _playerName.isEmpty) {
+      debugPrint('Cannot join room: not connected or no player name');
       return false;
     }
-    
+
     _isJoining = true;
     notifyListeners();
-    
+
+    debugPrint('Calling websocket service joinRoom...');
     final result = await _websocketService.joinRoom(roomId, _playerName);
-    
+    debugPrint('joinRoom result: $result');
+
     _isJoining = false;
     notifyListeners();
-    
+
     return result;
   }
 
   /// Leave the current game room
   Future<bool> leaveRoom() async {
     if (!isInRoom) return false;
-    
+
     final result = await _websocketService.leaveRoom();
     if (result) {
       _currentRoom = null;
       notifyListeners();
     }
-    
+
     return result;
   }
 
   /// Submit a recorded melody to challenge the other player
   Future<bool> submitRecordedMelody(List<int> notes, List<int> timings, List<int> durations) async {
     if (!isInRoom || !isActivePlayer) return false;
-    
+
     return await _websocketService.submitMelody(notes, timings, durations);
   }
 
   /// Submit a replay attempt to be scored
   Future<bool> submitReplayAttempt(List<int> notes, List<int> timings, List<int> durations) async {
     if (!isInRoom || !isChallengePlayer) return false;
-    
+
     return await _websocketService.submitReplay(notes, timings, durations);
   }
 
@@ -156,116 +179,127 @@ class MultiplayerService extends ChangeNotifier {
     // Room updates
     _roomUpdateSubscription = _websocketService.onRoomUpdate.listen((data) {
       try {
+        // Check if this is direct room state data or wrapped in 'room' key
+        Map<String, dynamic> roomData;
         if (data.containsKey('room')) {
-          final roomData = data['room'];
-          // Convert room data to a GameRoom object based on the JSON structure
-          final roomId = roomData['id'] as String;
-          final state = _convertStateFromString(roomData['state'] as String);
-          final currentRound = roomData['current_round'] as int;
-          final totalRounds = roomData['total_rounds'] as int;
-          
-          // Parse players
-          final List<dynamic> playersData = roomData['players'] as List<dynamic>;
-          final players = playersData.map((playerData) {
-            return Player(
-              id: playerData['id'] as String,
-              name: playerData['name'] as String,
-              score: playerData['score'] as int,
-            );
-          }).toList();
-          
-          // Parse active and challenge players
-          Player? activePlayer;
-          Player? challengePlayer;
-          
-          final String? activePlayerId = roomData['active_player'] as String?;
-          final String? challengePlayerId = roomData['challenge_player'] as String?;
-          
-          if (activePlayerId != null) {
-            activePlayer = players.firstWhere(
-              (p) => p.id == activePlayerId,
-              orElse: () => Player(id: '', name: ''),
-            );
-          }
-          
-          if (challengePlayerId != null) {
-            challengePlayer = players.firstWhere(
-              (p) => p.id == challengePlayerId,
-              orElse: () => Player(id: '', name: ''),
-            );
-          }
-          
-          // Parse current challenge
-          Melody? currentChallenge;
-          final dynamic challengeData = roomData['current_challenge'];
-          if (challengeData != null) {
-            currentChallenge = Melody(
-              notes: List<int>.from(challengeData['notes'] as List),
-              timings: List<int>.from(challengeData['timings'] as List),
-              durations: List<int>.from(challengeData['durations'] as List),
-            );
-          }
-          
-          // Create the room object
-          _currentRoom = GameRoom(
-            id: roomId,
-            players: players,
-            state: state,
-            currentRound: currentRound,
-            totalRounds: totalRounds,
-            activePlayer: activePlayer,
-            challengePlayer: challengePlayer,
-            currentChallenge: currentChallenge,
-          );
-          
-          notifyListeners();
+          roomData = data['room'] as Map<String, dynamic>;
+        } else if (data.containsKey('room_state')) {
+          roomData = data['room_state'] as Map<String, dynamic>;
+        } else {
+          // Direct room state format from server
+          roomData = data;
         }
+
+        // Parse server's simple room state format
+        final roomId = roomData['room_id'] as String;
+        final String currentTurnPlayerId = roomData['current_turn'] as String? ?? '';
+        final bool hasChallenge = roomData['has_challenge'] as bool? ?? false;
+        final int turnCount = roomData['turn_count'] as int? ?? 0;
+
+        // Parse players list from server format
+        final List<dynamic> playersData = roomData['players'] as List<dynamic>? ?? [];
+        final players = playersData.map((playerData) {
+          return Player(
+            id: playerData['id'] as String,
+            name: playerData['name'] as String,
+            score: playerData['score'] as int? ?? 0,
+          );
+        }).toList();
+
+        // Determine active and challenge players based on game logic
+        Player? activePlayer;
+        Player? challengePlayer;
+
+        if (currentTurnPlayerId.isNotEmpty && players.isNotEmpty) {
+          // Find the current turn player
+          activePlayer = players.firstWhere(
+            (p) => p.id == currentTurnPlayerId,
+            orElse: () => players.first,
+          );
+
+          // If there's a challenge, the non-active player is the challenge player
+          if (hasChallenge && players.length >= 2) {
+            challengePlayer = players.firstWhere(
+              (p) => p.id != currentTurnPlayerId,
+              orElse: () => players.last,
+            );
+          }
+        }
+
+        // Determine game state based on turn and challenge
+        GameState gameState = GameState.waiting;
+        if (players.length >= 2) {
+          if (hasChallenge) {
+            gameState = GameState.replaying; // Someone needs to replay the challenge
+          } else {
+            gameState = GameState.recording; // Someone needs to record a melody
+          }
+        }
+
+        // Create the room object with server data
+        _currentRoom = GameRoom(
+          id: roomId,
+          players: players,
+          state: gameState,
+          currentRound: (turnCount / 2).floor() + 1, // Estimate round from turn count
+          totalRounds: 5, // Default total rounds
+          activePlayer: activePlayer,
+          challengePlayer: challengePlayer,
+          currentChallenge: null, // Will be set via separate challenge events
+        );
+
+        notifyListeners();
       } catch (e) {
         debugPrint('Error handling room update: $e');
+        debugPrint('Room data: $data');
       }
     });
-    
+
     // Player joined
     _playerJoinedSubscription = _websocketService.onPlayerJoined.listen((data) {
       try {
-        final playerId = data['player_id'] as String;
-        final playerName = data['player_name'] as String;
-        
-        if (_currentRoom != null) {
-          final player = Player(id: playerId, name: playerName);
-          _currentRoom!.players.add(player);
+        // Update room state from the event
+        if (data.containsKey('room_state')) {
+          _updateRoomFromState(data['room_state'] as Map<String, dynamic>);
           notifyListeners();
         }
       } catch (e) {
         debugPrint('Error handling player joined: $e');
       }
     });
-    
+
     // Player left
     _playerLeftSubscription = _websocketService.onPlayerLeft.listen((data) {
       try {
-        final playerId = data['player_id'] as String;
-        
-        if (_currentRoom != null) {
-          _currentRoom!.players.removeWhere((p) => p.id == playerId);
-          notifyListeners();
+        // Update room state from the event or handle manually
+        if (data.containsKey('room_state')) {
+          _updateRoomFromState(data['room_state'] as Map<String, dynamic>);
+        } else if (_currentRoom != null && data.containsKey('player_id')) {
+          // Manually remove player if no room state provided
+          final playerId = data['player_id'] as String;
+          final updatedPlayers = _currentRoom!.players
+              .where((p) => p.id != playerId)
+              .toList();
+          
+          _currentRoom = _currentRoom!.copyWith(players: updatedPlayers);
         }
+        notifyListeners();
       } catch (e) {
         debugPrint('Error handling player left: $e');
       }
     });
-    
+
     // Turn change
     _turnChangeSubscription = _websocketService.onTurnChange.listen((data) {
       try {
         if (_currentRoom != null) {
           final activePlayerId = data['active_player_id'] as String;
           final challengePlayerId = data['challenge_player_id'] as String;
-          
+
           // Update active and challenge player roles
           _currentRoom!.activePlayer = _currentRoom!.getPlayerById(activePlayerId);
           _currentRoom!.challengePlayer = _currentRoom!.getPlayerById(challengePlayerId);
-          
+
           // Update game state
           _currentRoom!.changeState(GameState.recording);
           notifyListeners();
@@ -274,41 +308,33 @@ class MultiplayerService extends ChangeNotifier {
         debugPrint('Error handling turn change: $e');
       }
     });
-    
+
     // New challenge
     _newChallengeSubscription = _websocketService.onNewChallenge.listen((data) {
       try {
-        if (_currentRoom != null && data.containsKey('melody')) {
-          final melodyData = data['melody'] as Map<String, dynamic>;
-          final melody = Melody(
-            notes: List<int>.from(melodyData['notes'] as List),
-            timings: List<int>.from(melodyData['timings'] as List),
-            durations: List<int>.from(melodyData['durations'] as List),
-          );
+        if (_currentRoom != null) {
+          // First update room state from the event
+          if (data.containsKey('room_state')) {
+            _updateRoomFromState(data['room_state'] as Map<String, dynamic>);
+          }
+
+          // Then try to get the challenge melody from the server
+          _fetchCurrentChallenge();
           
-          _currentRoom!.setChallenge(melody);
-          _currentRoom!.changeState(GameState.replaying);
           notifyListeners();
         }
       } catch (e) {
         debugPrint('Error handling new challenge: $e');
       }
     });
-    
+
     // Score update
     _scoreUpdateSubscription = _websocketService.onScoreUpdate.listen((data) {
       try {
         if (_currentRoom != null) {
-          final playerId = data['player_id'] as String;
-          final score = data['score'] as double;
-          final roundComplete = data['round_complete'] as bool? ?? false;
-          
-          // Update player score
-          _currentRoom!.updatePlayerScore(playerId, score.toInt());
-          
-          // Handle round completion
-          if (roundComplete) {
-            // Game state updates will come via room_update event
+          // Update room state from the event
+          if (data.containsKey('room_state')) {
+            _updateRoomFromState(data['room_state'] as Map<String, dynamic>);
           }
           
           notifyListeners();
@@ -318,20 +344,93 @@ class MultiplayerService extends ChangeNotifier {
       }
     });
   }
-  
-  /// Convert string representation of game state to enum
-  GameState _convertStateFromString(String stateStr) {
-    switch (stateStr) {
-      case 'waiting':
-        return GameState.waiting;
-      case 'recording':
-        return GameState.recording;
-      case 'replaying':
-        return GameState.replaying;
-      case 'game_over':
-        return GameState.gameOver;
-      default:
-        return GameState.waiting;
+
+
+  /// Update room from room state data (helper for WebSocket events)
+  void _updateRoomFromState(Map<String, dynamic> roomData) {
+    if (_currentRoom == null) return;
+    
+    try {
+      final String currentTurnPlayerId = roomData['current_turn'] as String? ?? '';
+      final bool hasChallenge = roomData['has_challenge'] as bool? ?? false;
+      final int turnCount = roomData['turn_count'] as int? ?? 0;
+
+      // Parse players list from server format
+      final List<dynamic> playersData = roomData['players'] as List<dynamic>? ?? [];
+      final players = playersData.map((playerData) {
+        return Player(
+          id: playerData['id'] as String,
+          name: playerData['name'] as String,
+          score: playerData['score'] as int? ?? 0,
+        );
+      }).toList();
+
+      // Determine active and challenge players
+      Player? activePlayer;
+      Player? challengePlayer;
+      
+      if (currentTurnPlayerId.isNotEmpty && players.isNotEmpty) {
+        activePlayer = players.firstWhere(
+          (p) => p.id == currentTurnPlayerId,
+          orElse: () => players.first,
+        );
+
+        if (hasChallenge && players.length >= 2) {
+          challengePlayer = players.firstWhere(
+            (p) => p.id != currentTurnPlayerId,
+            orElse: () => players.last,
+          );
+        }
+      }
+
+      // Determine game state based on turn and challenge
+      GameState gameState = GameState.waiting;
+      if (players.length >= 2) {
+        if (hasChallenge) {
+          gameState = GameState.replaying;
+        } else {
+          gameState = GameState.recording;
+        }
+      }
+
+      // Create a new room with updated data (since players is final)
+      _currentRoom = GameRoom(
+        id: _currentRoom!.id,
+        players: players,
+        activePlayer: activePlayer,
+        challengePlayer: challengePlayer,
+        state: gameState,
+        currentRound: (turnCount / 2).floor() + 1,
+        totalRounds: _currentRoom!.totalRounds,
+        currentChallenge: _currentRoom!.currentChallenge,
+      );
+    } catch (e) {
+      debugPrint('Error updating room from state: $e');
+    }
+  }
+
+  /// Fetch the current challenge melody from the server
+  Future<void> _fetchCurrentChallenge() async {
+    if (_currentRoom == null || _websocketService.playerId.isEmpty) return;
+    
+    try {
+      final result = await ServerManager.instance.getChallenge(
+        _currentRoom!.id, 
+        _websocketService.playerId
+      );
+      
+      if (result['success'] == true && result.containsKey('melody')) {
+        final melodyData = result['melody'] as Map<String, dynamic>;
+        final melody = Melody(
+          notes: List<int>.from(melodyData['melody'] as List),
+          timings: List<int>.from(melodyData['timings'] as List),
+          durations: List<int>.from(melodyData['durations'] as List),
+        );
+        
+        _currentRoom!.setChallenge(melody);
+      }
+    } catch (e) {
+      debugPrint('Error fetching challenge: $e');
     }
   }
 
@@ -346,4 +445,4 @@ class MultiplayerService extends ChangeNotifier {
     _scoreUpdateSubscription?.cancel();
     super.dispose();
   }
-} 
+}
