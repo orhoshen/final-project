@@ -76,7 +76,8 @@ class _MultiplayerRoomScreenState extends State<MultiplayerRoomScreen> {
     }
 
     // Submit recording to server
-    final service = Provider.of<MultiplayerService>(context, listen: false);
+    final service = Provider.of<MultiplayerService?>(context, listen: false);
+    if (service == null) return;
     final success = await service.submitRecordedMelody(
       _recordedNotes,
       _recordedTimings,
@@ -142,7 +143,8 @@ class _MultiplayerRoomScreenState extends State<MultiplayerRoomScreen> {
     }
 
     // Submit replay to server for scoring
-    final service = Provider.of<MultiplayerService>(context, listen: false);
+    final service = Provider.of<MultiplayerService?>(context, listen: false);
+    if (service == null) return;
     final success = await service.submitReplayAttempt(
       _replayedNotes,
       _replayedTimings,
@@ -359,14 +361,33 @@ class _MultiplayerRoomScreenState extends State<MultiplayerRoomScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-              ElevatedButton(
-                onPressed: () async {
-                  final success = await service.leaveRoom();
-                  if (success && mounted) {
-                    Navigator.of(context).pop();
-                  }
-                },
-                child: const Text('Back to Lobby'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      final success = await service.leaveRoom();
+                      if (success && mounted) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    child: const Text('Back to Lobby'),
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final success = await service.leaveRoom();
+                      if (success && mounted) {
+                        // Navigate back to Main Menu
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                    ),
+                    child: const Text('Main Menu'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -387,8 +408,20 @@ class _MultiplayerRoomScreenState extends State<MultiplayerRoomScreen> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
-      body: Consumer<MultiplayerService>(
+      body: Consumer<MultiplayerService?>(
         builder: (context, multiplayerService, _) {
+          if (multiplayerService == null) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Connecting to server...'),
+                ],
+              ),
+            );
+          }
           return Column(
             children: [
               // Game controls

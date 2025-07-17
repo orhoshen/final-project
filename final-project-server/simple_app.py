@@ -17,13 +17,7 @@ CORS(app, resources={r"/*": {
 # Initialize SocketIO with the app - configure for CORS
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Middleware to ensure all responses have CORS headers
-@app.after_request
-def add_cors_headers(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-    return response
+# CORS is handled by Flask-CORS extension above
 
 # Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
@@ -38,14 +32,7 @@ def home():
         'status': 'running'
     })
 
-# Add a route for handling OPTIONS requests (preflight)
-@app.route('/<path:path>', methods=['OPTIONS'])
-def handle_options(path):
-    response = app.make_default_options_response()
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-    return response
+# OPTIONS requests are handled by Flask-CORS extension
 
 @app.route('/static/<path:filename>')
 def static_files(filename):

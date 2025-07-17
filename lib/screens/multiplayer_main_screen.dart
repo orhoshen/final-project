@@ -13,94 +13,49 @@ class MultiplayerMainScreen extends StatefulWidget {
 }
 
 class _MultiplayerMainScreenState extends State<MultiplayerMainScreen> {
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _roomIdController = TextEditingController();
-  final TextEditingController _serverUrlController = TextEditingController();
-  
-  bool _isConnecting = false;
+  final _nameController = TextEditingController();
+  final _roomIdController = TextEditingController();
   String _errorMessage = '';
-  bool _showAdvancedOptions = false;
 
   @override
   void initState() {
     super.initState();
-    _initialize();
-  }
-
-  Future<void> _initialize() async {
-    final service = Provider.of<MultiplayerService>(context, listen: false);
-    
-    // Set default server URL
-    _serverUrlController.text = 'http://localhost:5001';
-    
-    // Load existing player name if available
-    setState(() {
-      _nameController.text = service.playerName;
-    });
+    // Set default server URL for display, actual connection uses env var
+    // _serverUrlController.text = 'http://localhost:5001'; // This line is removed
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _roomIdController.dispose();
-    _serverUrlController.dispose();
+    // _serverUrlController.dispose(); // This line is removed
     super.dispose();
   }
 
-  Future<void> _connect() async {
+  Future<void> _createRoom() async {
+    final service = Provider.of<MultiplayerService?>(context, listen: false);
+    if (service == null || !service.isConnected) {
+      setState(() {
+        _errorMessage = 'Not connected to server. Please try again later.';
+      });
+      return;
+    }
+
     if (_nameController.text.trim().isEmpty) {
       setState(() {
         _errorMessage = 'Please enter your name';
       });
       return;
     }
-
-    setState(() {
-      _isConnecting = true;
-      _errorMessage = '';
-    });
-
-    try {
-      final service = Provider.of<MultiplayerService>(context, listen: false);
-      
-      // Set player name
-      await service.setPlayerName(_nameController.text.trim());
-      
-      // Connect to WebSocket server
-      final connected = await service.connect(
-        serverUrl: _serverUrlController.text.trim(),
-      );
-      
-      if (!connected) {
-        setState(() {
-          _errorMessage = 'Failed to connect to the server';
-          _isConnecting = false;
-        });
-        return;
-      }
-      
-      setState(() {
-        _isConnecting = false;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Error: $e';
-        _isConnecting = false;
-      });
-    }
-  }
-
-  Future<void> _createRoom() async {
-    if (!_validateAndConnect()) return;
+    await service.setPlayerName(_nameController.text.trim());
 
     setState(() {
       _errorMessage = '';
     });
 
     try {
-      final service = Provider.of<MultiplayerService>(context, listen: false);
       final success = await service.createRoom();
-      
+
       if (success) {
         if (mounted) {
           Navigator.of(context).pushReplacement(
@@ -122,8 +77,22 @@ class _MultiplayerMainScreenState extends State<MultiplayerMainScreen> {
   }
 
   Future<void> _joinRoom() async {
-    if (!_validateAndConnect()) return;
-    
+    final service = Provider.of<MultiplayerService?>(context, listen: false);
+    if (service == null || !service.isConnected) {
+      setState(() {
+        _errorMessage = 'Not connected to server. Please try again later.';
+      });
+      return;
+    }
+
+    if (_nameController.text.trim().isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter your name';
+      });
+      return;
+    }
+    await service.setPlayerName(_nameController.text.trim());
+
     if (_roomIdController.text.trim().isEmpty) {
       setState(() {
         _errorMessage = 'Please enter a room ID';
@@ -136,9 +105,8 @@ class _MultiplayerMainScreenState extends State<MultiplayerMainScreen> {
     });
 
     try {
-      final service = Provider.of<MultiplayerService>(context, listen: false);
       final success = await service.joinRoom(_roomIdController.text.trim());
-      
+
       if (success) {
         if (mounted) {
           Navigator.of(context).pushReplacement(
@@ -159,24 +127,6 @@ class _MultiplayerMainScreenState extends State<MultiplayerMainScreen> {
     }
   }
 
-  bool _validateAndConnect() {
-    if (_nameController.text.trim().isEmpty) {
-      setState(() {
-        _errorMessage = 'Please enter your name';
-      });
-      return false;
-    }
-
-    final service = Provider.of<MultiplayerService>(context, listen: false);
-    
-    if (!service.isConnected) {
-      _connect();
-      return false;
-    }
-    
-    return true;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -191,8 +141,28 @@ class _MultiplayerMainScreenState extends State<MultiplayerMainScreen> {
       ),
       body: Center(
         child: SingleChildScrollView(
-          child: Consumer<MultiplayerService>(
+          child: Consumer<MultiplayerService?>(
             builder: (context, multiplayerService, _) {
+              // Show loading if service is not ready
+              if (multiplayerService == null) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Connecting to server...'),
+                    ],
+                  ),
+                );
+              }
+
+              // Initialize name controller only once when the service is first available
+              if (_nameController.text.isEmpty &&
+                  multiplayerService.playerName.isNotEmpty) {
+                _nameController.text = multiplayerService.playerName;
+              }
+
               return Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
@@ -203,7 +173,7 @@ class _MultiplayerMainScreenState extends State<MultiplayerMainScreen> {
                       style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 30),
-                    
+
                     // Player name input
                     TextField(
                       controller: _nameController,
@@ -214,24 +184,24 @@ class _MultiplayerMainScreenState extends State<MultiplayerMainScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Create room button
                     ElevatedButton(
-                      onPressed: multiplayerService.isCreating ? null : _createRoom,
+                      onPressed: (multiplayerService.isCreating) ? null : _createRoom,
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size.fromHeight(50),
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
                       ),
-                      child: multiplayerService.isCreating
+                      child: (multiplayerService.isCreating)
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text('Create New Room', style: TextStyle(fontSize: 16)),
                     ),
                     const SizedBox(height: 20),
-                    
+
                     const Text('- OR -', style: TextStyle(fontSize: 16)),
                     const SizedBox(height: 20),
-                    
+
                     // Room ID input
                     TextField(
                       controller: _roomIdController,
@@ -242,70 +212,26 @@ class _MultiplayerMainScreenState extends State<MultiplayerMainScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Join room button
                     ElevatedButton(
-                      onPressed: multiplayerService.isJoining ? null : _joinRoom,
+                      onPressed: (multiplayerService.isJoining) ? null : _joinRoom,
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size.fromHeight(50),
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
                       ),
-                      child: multiplayerService.isJoining
+                      child: (multiplayerService.isJoining)
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text('Join Room', style: TextStyle(fontSize: 16)),
                     ),
-                    
+
                     if (_errorMessage.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       Text(
                         _errorMessage,
                         style: const TextStyle(color: Colors.red, fontSize: 14),
                         textAlign: TextAlign.center,
-                      ),
-                    ],
-                    
-                    const SizedBox(height: 20),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _showAdvancedOptions = !_showAdvancedOptions;
-                        });
-                      },
-                      child: Text(
-                        _showAdvancedOptions ? 'Hide Advanced Options' : 'Show Advanced Options',
-                      ),
-                    ),
-                    
-                    if (_showAdvancedOptions) ...[
-                      const SizedBox(height: 20),
-                      TextField(
-                        controller: _serverUrlController,
-                        decoration: const InputDecoration(
-                          labelText: 'Server URL',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.dns),
-                          helperText: 'Default: http://localhost:5001',
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: _isConnecting ? null : _connect,
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(50),
-                        ),
-                        child: _isConnecting
-                            ? const CircularProgressIndicator()
-                            : const Text('Connect to Server', style: TextStyle(fontSize: 16)),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        multiplayerService.isConnected 
-                            ? 'Connected to server'
-                            : 'Not connected to server',
-                        style: TextStyle(
-                          color: multiplayerService.isConnected ? Colors.green : Colors.red,
-                        ),
                       ),
                     ],
                   ],
@@ -317,4 +243,4 @@ class _MultiplayerMainScreenState extends State<MultiplayerMainScreen> {
       ),
     );
   }
-} 
+}

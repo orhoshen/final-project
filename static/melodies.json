@@ -1,52 +1,173 @@
-{
-  "melodies": [
-    {
-      "title": "Twinkle Twinkle Little Star",
-      "composer": "Traditional",
-      "difficulty": 1,
-      "notes": [33, 53, 42, 53, 57, 53, 82, 42, 60, 53, 64, 53, 42, 53, 60, 53, 42, 57, 53, 42]
-    },
-    {
-      "title": "Mary Had a Little Lamb",
-      "composer": "Traditional",
-      "difficulty": 1,
-      "notes": [40, 40, 40, 40, 40, 40, 40, 43, 41, 36, 36, 35, 40, 38, 36, 36, 35, 40, 38, 36]
-    },
-    {
-      "title": "Happy Birthday",
-      "composer": "Traditional",
-      "difficulty": 2,
-      "notes": [54, 47, 50, 66, 62, 71, 59, 50, 54, 50, 59, 71, 66, 50, 62, 54, 59, 54, 50, 59]
-    },
-    {
-      "title": "Canon in D (simplified)",
-      "composer": "Pachelbel",
-      "difficulty": 5,
-      "notes": [79, 79, 79, 74, 76, 76, 74, 83, 83, 81, 81, 79, 74, 79, 79, 79, 74, 76, 76, 74]
-    },
-    {
-      "title": "Clair de Lune (simplified)",
-      "composer": "Debussy",
-      "difficulty": 7,
-      "notes": [66, 75, 73, 65, 37, 44, 53, 61, 65, 66, 75, 73, 65, 46, 53, 56, 61, 65, 61, 68]
-    },
-    {
-      "title": "Nocturne Op. 9 No. 2 (excerpt)",
-      "composer": "Chopin",
-      "difficulty": 8,
-      "notes": [69, 69, 69, 69, 67, 65, 65, 69, 74, 72, 72, 67, 67, 67, 69, 70, 70, 69, 69, 69]
-    },
-    {
-      "title": "Scale in C major",
-      "composer": "Practice",
-      "difficulty": 1,
-      "notes": [60, 62, 64, 65, 67, 69, 71, 72]
-    },
-    {
-      "title": "Major Chord Progression",
-      "composer": "Practice",
-      "difficulty": 2,
-      "notes": [60, 64, 67, 62, 65, 69, 64, 67, 71, 65, 69, 72]
-    }
-  ]
-} 
+[
+  {
+    "title": "Twinkle Twinkle",
+    "notes": [
+      60,
+      60,
+      67,
+      67,
+      69,
+      69,
+      67,
+      65,
+      65,
+      64,
+      64,
+      62,
+      62,
+      60
+    ]
+  },
+  {
+    "title": "Mary Had a Little Lamb",
+    "notes": [
+      64,
+      62,
+      60,
+      62,
+      64,
+      64,
+      64,
+      62,
+      62,
+      62,
+      64,
+      67,
+      67
+    ]
+  },
+  {
+    "title": "Happy Birthday (Verse 1)",
+    "notes": [
+      60,
+      60,
+      62,
+      60,
+      65,
+      64
+    ]
+  },
+  {
+    "title": "Ode to Joy (Opening)",
+    "notes": [
+      64,
+      64,
+      65,
+      67,
+      67,
+      65,
+      64,
+      62,
+      60,
+      60,
+      62,
+      64,
+      64,
+      62,
+      62
+    ]
+  },
+  {
+    "title": "Jingle Bells (Chorus)",
+    "notes": [
+      64,
+      64,
+      64,
+      64,
+      64,
+      64,
+      64,
+      67,
+      60,
+      62,
+      64
+    ]
+  },
+  {
+    "title": "Row Your Boat",
+    "notes": [
+      60,
+      60,
+      60,
+      62,
+      64,
+      64,
+      62,
+      64,
+      65,
+      67
+    ]
+  },
+  {
+    "title": "Frère Jacques",
+    "notes": [
+      60,
+      62,
+      64,
+      60,
+      60,
+      62,
+      64,
+      60,
+      64,
+      65,
+      67,
+      64,
+      65,
+      67
+    ]
+  },
+  {
+    "title": "London Bridge",
+    "notes": [
+      67,
+      69,
+      67,
+      65,
+      64,
+      65,
+      67,
+      62,
+      64,
+      65,
+      64,
+      65,
+      67
+    ]
+  },
+  {
+    "title": "Old MacDonald",
+    "notes": [
+      67,
+      67,
+      67,
+      64,
+      65,
+      65,
+      64,
+      72,
+      72,
+      69,
+      69,
+      67
+    ]
+  },
+  {
+    "title": "Itsy Bitsy Spider",
+    "notes": [
+      60,
+      60,
+      60,
+      62,
+      64,
+      64,
+      64,
+      62,
+      60,
+      62,
+      64,
+      62,
+      60
+    ]
+  }
+]

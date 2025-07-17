@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'simple_multiplayer_screen.dart';
+
 class TestingHubScreen extends StatelessWidget {
   const TestingHubScreen({super.key});
 
@@ -44,22 +46,37 @@ class TestingHubScreen extends StatelessWidget {
             icon: Icons.network_check,
             color: Colors.teal,
           ),
+          const SizedBox(height: 12),
+          _buildTestButton(
+            context,
+            title: 'Multiplayer Mode',
+            routeName: '/multiplayer', // Placeholder, not used by MaterialRoute
+            icon: Icons.people,
+            color: Colors.green,
+            useMaterialRoute: true,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTestButton(BuildContext context, {
+  Widget _buildTestButton(
+    BuildContext context, {
     required String title,
     required String routeName,
     required IconData icon,
     required Color color,
+    bool useMaterialRoute = false,
   }) {
     return ElevatedButton.icon(
       icon: Icon(icon, color: Colors.white),
       label: Text(title),
       onPressed: () {
-        Navigator.pushNamed(context, routeName);
+        if (useMaterialRoute) {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const SimpleMultiplayerScreen()));
+        } else {
+          Navigator.pushNamed(context, routeName);
+        }
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
@@ -70,4 +87,4 @@ class TestingHubScreen extends StatelessWidget {
       ),
     );
   }
-} 
+}

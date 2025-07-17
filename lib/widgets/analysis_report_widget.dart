@@ -16,12 +16,13 @@ class AnalysisReportWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool serverComparison = scoreData.containsKey('note_details') || 
-                                  scoreData.containsKey('processing_time_ms');
+    final bool serverComparison = scoreData.containsKey('note_details') ||
+        scoreData.containsKey('processing_time_ms') ||
+        scoreData.containsKey('matching_runtime_nocom');
     final double? overallScore = scoreData['final_score'] as double?;
     final double? pitchAccuracy = scoreData['pitch_accuracy'] as double?;
     final double? timingAccuracy = scoreData['timing_accuracy'] as double?;
-    final double? matchingRuntimeNocom = scoreData['processing_time_ms'] as double?;
+    final double? matchingRuntimeNocom = scoreData['matching_runtime_nocom'] as double?;
     final List<dynamic>? noteDetailsList = scoreData['note_details'] as List<dynamic>?;
 
     return Container(
@@ -41,25 +42,30 @@ class AnalysisReportWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with analysis type and response time
+          // Header with analysis type
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 serverComparison ? 'Server Analysis' : 'Offline Analysis',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
-              if (clientRoundTripTime != null)
-                Text(
-                  'Response Time: ${clientRoundTripTime}ms',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey.shade700,
-                  ),
-                ),
             ],
           ),
+
+          // Timing metrics
+          if (clientRoundTripTime != null || matchingRuntimeNocom != null) ...[
+            const SizedBox(height: 8),
+            if (clientRoundTripTime != null)
+              _buildMetricRow(context, 'Response Time (client→server→client)', clientRoundTripTime!.toDouble(),
+                  isMilliseconds: true, isScore: false),
+            if (matchingRuntimeNocom != null)
+              _buildMetricRow(context, 'Matching Time (server only)', matchingRuntimeNocom,
+                  isMilliseconds: true, isScore: false),
+          ],
+
           const Divider(),
 
           // Overall Score
@@ -69,28 +75,21 @@ class AnalysisReportWidget extends StatelessWidget {
               child: Text(
                 'Overall Score: ${(overallScore * 100).toStringAsFixed(1)}%',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: _getColorForScore(overallScore),
-                ),
+                      fontWeight: FontWeight.bold,
+                      color: _getColorForScore(overallScore),
+                    ),
               ),
             ),
 
           // Accuracy Metrics
-          if (pitchAccuracy != null)
-            _buildMetricRow(context, 'Pitch Accuracy', pitchAccuracy * 100),
-          if (timingAccuracy != null)
-            _buildMetricRow(context, 'Timing Accuracy', timingAccuracy * 100),
-          if (matchingRuntimeNocom != null)
-            _buildMetricRow(context, 'Server Match Time (no com)', matchingRuntimeNocom, 
-                          isMilliseconds: true, isScore: false),
+          if (pitchAccuracy != null) _buildMetricRow(context, 'Pitch Accuracy', pitchAccuracy * 100),
+          if (timingAccuracy != null) _buildMetricRow(context, 'Timing Accuracy', timingAccuracy * 100),
 
           // Additional accuracy metrics if available
           if (scoreData.containsKey('onset_accuracy'))
-            _buildMetricRow(context, 'Onset Accuracy', 
-              (scoreData['onset_accuracy'] as double) * 100),
+            _buildMetricRow(context, 'Onset Accuracy', (scoreData['onset_accuracy'] as double) * 100),
           if (scoreData.containsKey('duration_accuracy'))
-            _buildMetricRow(context, 'Duration Accuracy', 
-              (scoreData['duration_accuracy'] as double) * 100),
+            _buildMetricRow(context, 'Duration Accuracy', (scoreData['duration_accuracy'] as double) * 100),
 
           // Algorithm Scores
           if (scoreData.containsKey('individual_scores')) ...[
@@ -98,16 +97,15 @@ class AnalysisReportWidget extends StatelessWidget {
             Text(
               'Algorithm Scores:',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 4),
             Wrap(
               spacing: 8,
               children: (scoreData['individual_scores'] as Map<String, dynamic>)
                   .entries
-                  .map((entry) => _buildAlgorithmChip(context, entry.key, 
-                                                    (entry.value as double? ?? 0.0) * 100))
+                  .map((entry) => _buildAlgorithmChip(context, entry.key, (entry.value as double? ?? 0.0) * 100))
                   .toList(),
             ),
           ],
@@ -120,21 +118,19 @@ class AnalysisReportWidget extends StatelessWidget {
               child: Text(
                 'Note Details:',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
             ),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: noteDetailsList.length,
-              itemBuilder: (context, index) {
-                final note = noteDetailsList[index] as Map<String, dynamic>;
+            Column(
+              children: noteDetailsList.map((noteData) {
+                final note = noteData as Map<String, dynamic>;
                 final targetNoteName = note['target_note_name'] ?? 'N/A';
                 final playedNoteName = note['played_note_name'] ?? 'N/A';
                 final isCorrectPitch = note['is_correct_pitch'] ?? false;
                 final onsetErr = note['onset_error'] ?? 'N/A';
                 final durationErr = note['duration_error'] ?? 'N/A';
+                final noteIndex = noteDetailsList.indexOf(noteData);
 
                 return Card(
                   elevation: 1,
@@ -145,10 +141,10 @@ class AnalysisReportWidget extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Note ${index + 1}: Target: $targetNoteName, Played: $playedNoteName',
+                          'Note ${noteIndex + 1}: Target: $targetNoteName, Played: $playedNoteName',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                                fontWeight: FontWeight.bold,
+                              ),
                         ),
                         Text(
                           'Correct Pitch: ${isCorrectPitch ? "Yes" : "No"}',
@@ -162,30 +158,20 @@ class AnalysisReportWidget extends StatelessWidget {
                     ),
                   ),
                 );
-              },
+              }).toList(),
             ),
           ],
 
-          // Close Button
-          const SizedBox(height: 16),
-          Center(
-            child: ElevatedButton(
-              onPressed: onClose,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Close Report'),
-            ),
-          ),
+          // Note: Removed Close button since dialogs should never auto-dismiss
+          // and should be handled by parent dialog buttons
         ],
       ),
     );
   }
 
   /// Build a metric row with label, value, and optional progress indicator
-  Widget _buildMetricRow(BuildContext context, String label, double value, 
-                        {bool isMilliseconds = false, bool isScore = true}) {
+  Widget _buildMetricRow(BuildContext context, String label, double value,
+      {bool isMilliseconds = false, bool isScore = true}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -195,9 +181,7 @@ class AnalysisReportWidget extends StatelessWidget {
           Row(
             children: [
               Text(
-                isMilliseconds 
-                    ? '${value.toStringAsFixed(2)}ms' 
-                    : '${value.toStringAsFixed(1)}%',
+                isMilliseconds ? '${value.toStringAsFixed(2)}ms' : '${value.toStringAsFixed(1)}%',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: isScore ? _getColorForScore(value / 100) : Colors.black,
@@ -281,4 +265,4 @@ class AnalysisReportWidget extends StatelessWidget {
     if (score >= 0.6) return Colors.orange;
     return Colors.red;
   }
-} 
+}

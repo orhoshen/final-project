@@ -6,6 +6,16 @@ import 'package:socket_io_client/socket_io_client.dart' as socket_io;
 
 /// Service for managing Socket.IO connections with the game server
 class WebSocketService extends ChangeNotifier {
+  // Private constructor
+  WebSocketService._();
+
+  // Public factory method for creation
+  static Future<WebSocketService> create(String serverUrl) async {
+    final service = WebSocketService._();
+    await service._connect(serverUrl);
+    return service;
+  }
+
   socket_io.Socket? _socket;
   bool _isConnected = false;
   String _roomId = '';
@@ -38,7 +48,7 @@ class WebSocketService extends ChangeNotifier {
   String get playerId => _playerId;
 
   /// Set the server URL (including port if needed)
-  void setServerUrl(String url) {
+  void _setServerUrl(String url) {
     String newUrl = url.trim();
     if (newUrl.isEmpty) {
       // Default to localhost if empty, ensure it's http for Socket.IO
@@ -77,7 +87,9 @@ class WebSocketService extends ChangeNotifier {
   }
 
   /// Connect to the Socket.IO server
-  Future<bool> connect() async {
+  Future<bool> _connect(String url) async {
+    _setServerUrl(url); // Set the server URL first
+
     if (_isConnected && _socket != null && _playerId.isNotEmpty) {
       debugPrint('Already connected with player ID.');
       return true;
@@ -106,6 +118,7 @@ class WebSocketService extends ChangeNotifier {
     }
 
     final completer = Completer<bool>();
+    Timer? timeoutTimer;
 
     try {
       debugPrint('Attempting to connect to Socket.IO server: $_serverUrl');
@@ -116,26 +129,22 @@ class WebSocketService extends ChangeNotifier {
               //.setTransports(['websocket']) // Force websocket if issues persist with polling fallback
               .build());
 
-      // Handler for receiving player ID
-      _socket!.once('connected', (data) {
-        if (data is Map<String, dynamic> && data.containsKey('player_id')) {
-          _playerId = data['player_id'];
-          _connectedController.add(data);
-          debugPrint('Received player ID: $_playerId');
-          if (!completer.isCompleted) completer.complete(true);
-          notifyListeners();
-        }
-      });
-
       _socket!.onConnect((_) {
         _isConnected = true;
-        debugPrint('Socket.IO transport connected: ${_socket?.id}');
-        // Player ID might not be received yet, 'connected' event handles that.
-        notifyListeners();
-        // If playerId is already populated by 'connected' event before onConnect fires (unlikely but possible)
-        if (_playerId.isNotEmpty && !completer.isCompleted) {
-          // completer.complete(true); // Not here, rely on 'connected' event for playerID confirmation
+        // The player ID is the socket's unique session ID
+        _playerId = _socket!.id!;
+        debugPrint('Socket.IO transport connected: Player ID ${_socket?.id}');
+
+        timeoutTimer?.cancel(); // Cancel the timeout timer
+        if (!completer.isCompleted) {
+          completer.complete(true);
         }
+        notifyListeners();
+      });
+
+      _socket!.on('connect_response', (data) {
+        // Optional: Can be used to confirm application-level connection
+        debugPrint('Received server connect_response: $data');
       });
 
       _socket!.on('room_update', (data) => _handleEvent('room_update', data, _roomUpdateController));
@@ -157,6 +166,7 @@ class WebSocketService extends ChangeNotifier {
         debugPrint('Socket.IO connect_error: $data');
         _isConnected = false;
         _errorController.add({'message': data.toString()});
+        timeoutTimer?.cancel(); // Cancel the timeout timer
         if (!completer.isCompleted) completer.complete(false);
         notifyListeners();
       });
@@ -165,14 +175,17 @@ class WebSocketService extends ChangeNotifier {
         debugPrint('Socket.IO connection error (onError): $error');
         _isConnected = false;
         _errorController.add({'message': error.toString()});
-        if (!completer.isCompleted) completer.complete(false);
+        timeoutTimer?.cancel(); // Cancel the timeout timer
+        if (!completer.isCompleted) {
+          completer.complete(false);
+        }
         notifyListeners();
       });
 
       _socket!.connect();
 
       // Timeout for the connection attempt itself
-      Future.delayed(const Duration(seconds: 10), () {
+      timeoutTimer = Timer(const Duration(seconds: 10), () {
         if (!completer.isCompleted) {
           debugPrint('Socket.IO connection attempt timed out.');
           completer.complete(false);
@@ -181,7 +194,10 @@ class WebSocketService extends ChangeNotifier {
     } catch (e) {
       debugPrint('Failed to initialize Socket.IO connection: $e');
       _isConnected = false;
-      if (!completer.isCompleted) completer.complete(false);
+      timeoutTimer?.cancel(); // Cancel the timeout timer
+      if (!completer.isCompleted) {
+        completer.complete(false);
+      }
       notifyListeners();
     }
     return completer.future;

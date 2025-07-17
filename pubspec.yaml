@@ -41,18 +41,20 @@ dependencies:
   
   # Web socket for multiplayer communication
   # web_socket_channel: ^2.4.0 # We are replacing this
-  socket_io_client: ^2.0.3 # For Socket.IO communication
+  socket_io_client: ^3.1.0 # Updated for Socket.IO protocol v5 compatibility
   
   # Shared preferences for storing user settings
   shared_preferences: ^2.2.2
 
-  # Only use Firebase Core for initialization
+  # Firebase services
   firebase_core: ^2.14.0
+  cloud_firestore: ^4.8.4
   
   http: ^1.4.0
   
   # Web APIs for modern web development
   web: ^1.0.0
+  flutter_dotenv: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -78,25 +80,11 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/piano.mp3
-    - assets/soundfonts/piano_soundfont.sf2
+    - .env
+    - assets/images/
     - assets/piano_notes/
-    - assets/piano_notes/note_60.mp3
-    - assets/piano_notes/note_61.mp3
-    - assets/piano_notes/note_62.mp3
-    - assets/piano_notes/note_63.mp3
-    - assets/piano_notes/note_64.mp3
-    - assets/piano_notes/note_65.mp3
-    - assets/piano_notes/note_66.mp3
-    - assets/piano_notes/note_67.mp3
-    - assets/piano_notes/note_68.mp3
-    - assets/piano_notes/note_69.mp3
-    - assets/piano_notes/note_70.mp3
-    - assets/piano_notes/note_71.mp3
-    - assets/piano_notes/note_72.mp3
-    - assets/midi/beginner/
-    - assets/midi/intermediate/
-    - assets/midi/advanced/
+    - assets/soundfonts/
+    - static/melodies.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
