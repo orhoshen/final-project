@@ -26,7 +26,18 @@ A sophisticated piano UI game application built with Flutter (client-side) and P
   - `soundfonts/` - Soundfont files for MIDI playbook
   - `midi/` - MIDI files organized by difficulty
 - `static/` - Static files and sample melodies
-- `final-project-server/` - Python Flask server with WebSocket support
+
+## Server
+
+The Piano Game Server is now maintained in a separate repository for better deployment and maintenance:
+
+**Server Repository**: https://github.com/AlonHermoni/final-project-server
+
+The server provides:
+- RESTful API for melody comparison and room management
+- WebSocket support for real-time multiplayer gameplay
+- Sophisticated melody matching algorithms
+- Google Cloud Run deployment configuration
 
 ## 🌐 Server Architecture
 
@@ -195,7 +206,6 @@ flutter build web --debug
 ## Architecture
 
 This application follows a client-server architecture:
-
 - **Client**: Flutter application (this repository)
 - **Server**: Python Flask server (separate repository)
 
