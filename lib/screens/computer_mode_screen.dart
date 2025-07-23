@@ -40,6 +40,10 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
   int _repeatCount = 0; // Count of times the reference melody has been repeated
   static const int _maxRepeats = 2; // Maximum allowed repeats per round
 
+  // Analysis mode tracking
+  bool _showingAnalysis = false; // Track when user is reviewing analysis
+  bool _lastRoundWasCorrect = false; // Track if they can continue or game ends
+
   @override
   void initState() {
     super.initState();
@@ -124,21 +128,17 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
               _score++;
               _isPlayerTurn = false;
               _playerSequence = [];
-              _statusMessage = 'Good job! Score: ${(score * 100).toStringAsFixed(1)}%';
+              _showingAnalysis = true; // Enter analysis mode
+              _lastRoundWasCorrect = true; // They can continue
+              _statusMessage = 'Good job! Score: ${(score * 100).toStringAsFixed(1)}% - Review your results below.';
             });
-
-            await Future.delayed(const Duration(seconds: 2));
-            if (mounted) {
-              _setNextMelody();
-            }
           } else {
             setState(() {
-              _statusMessage = 'Not quite right: ${(score * 100).toStringAsFixed(1)}%';
+              _isPlayerTurn = false;
+              _showingAnalysis = true; // Enter analysis mode
+              _lastRoundWasCorrect = false; // Game should end
+              _statusMessage = 'Not quite right: ${(score * 100).toStringAsFixed(1)}% - Review your analysis below.';
             });
-            await Future.delayed(const Duration(seconds: 2));
-            if (mounted) {
-              _showGameOver(score);
-            }
           }
         } else {
           developer.log('Server error, using fallback comparison');
@@ -212,6 +212,24 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
       _statusMessage = 'Replaying melody...';
     });
     await _playComputerSequence();
+  }
+
+  // Methods for user-controlled progression
+  void _continueToNextMelody() {
+    setState(() {
+      _showingAnalysis = false;
+      _lastComparisonDetails = null;
+      _lastMatchScore = null;
+      _processingTimeMs = null;
+    });
+    _setNextMelody();
+  }
+
+  void _endGameFromAnalysis() {
+    setState(() {
+      _showingAnalysis = false;
+    });
+    _showGameOver(_lastMatchScore);
   }
 
   Future<void> _setNextMelody() async {
@@ -364,6 +382,8 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
       _lastComparisonDetails = null;
       _processingTimeMs = null;
       _repeatCount = 0;
+      _showingAnalysis = false; // Reset analysis mode
+      _lastRoundWasCorrect = false; // Reset round result
       _statusMessage = 'Starting new game...';
     });
     _setNextMelody();
@@ -513,6 +533,47 @@ class _ComputerModeScreenState extends State<ComputerModeScreen> {
                   ),
                 ],
               ),
+
+            // Add Continue/End Game buttons when showing analysis
+            if (_showingAnalysis && _lastComparisonDetails != null) ...[
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  if (_lastRoundWasCorrect) ...[
+                    ElevatedButton.icon(
+                      onPressed: _continueToNextMelody,
+                      icon: const Icon(Icons.arrow_forward),
+                      label: const Text('Next Melody'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ] else ...[
+                    ElevatedButton.icon(
+                      onPressed: () => _startNewGame(),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try Again'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _endGameFromAnalysis,
+                      icon: const Icon(Icons.stop),
+                      label: const Text('End Game'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+
             const SizedBox(height: 20),
           ],
         ),

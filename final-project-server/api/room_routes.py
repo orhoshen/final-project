@@ -38,14 +38,42 @@ def create_room():
     
     player_name = data['player_name']
     
+    # DEBUG: Before creation
+    print(f"🔍 DEBUG: Creating room for player '{player_name}'")
+    print(f"🔍 DEBUG: Rooms before creation: {list(room_manager.rooms.keys())}")
+    
     # Create the room
     result = room_manager.create_room(player_name)
+    
+    # DEBUG: After creation
+    print(f"✅ DEBUG: Room created successfully - ID: {result['room_id']}, Player: {result['player_id']}")
+    print(f"✅ DEBUG: Rooms after creation: {list(room_manager.rooms.keys())}")
+    print(f"✅ DEBUG: Room manager instance ID: {id(room_manager)}")
     
     return jsonify({
         'success': True,
         'room_id': result['room_id'],
         'player_id': result['player_id'],
         'room_state': result['room_state']
+    })
+
+@room_routes.route('/debug', methods=['GET'])
+def debug_rooms():
+    """Debug endpoint to show all rooms and manager state"""
+    return jsonify({
+        'success': True,
+        'room_manager_id': id(room_manager),
+        'total_rooms': len(room_manager.rooms),
+        'room_ids': list(room_manager.rooms.keys()),
+        'room_details': {
+            room_id: {
+                'active': room.active,
+                'player_count': len(room.players),
+                'players': list(room.players.keys()),
+                'last_activity': room.last_activity
+            }
+            for room_id, room in room_manager.rooms.items()
+        }
     })
 
 @room_routes.route('/join', methods=['POST'])

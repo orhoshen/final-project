@@ -18,7 +18,7 @@ class ServerManager {
   static final instance = ServerManager._();
 
   static final String _baseUrl = dotenv.env['FLASK_SERVER_URL'] ?? 'http://localhost:5001';
-  static const Duration _requestTimeout = Duration(seconds: 10);
+  static const Duration _requestTimeout = Duration(seconds: 30);
 
   /// A generic helper for making POST requests.
   Future<Map<String, dynamic>> _post(String endpoint, Map<String, dynamic> body) async {
@@ -125,7 +125,24 @@ class ServerManager {
   /// Creates a new game room.
   /// Corresponds to POST /api/room/create
   Future<Map<String, dynamic>> createRoom(String playerName) async {
-    return await _post('/api/room/create', {'player_name': playerName});
+    // Retry logic for room creation
+    int retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        return await _post('/api/room/create', {'player_name': playerName});
+      } catch (e) {
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          rethrow; // Re-throw the exception if max retries reached
+        }
+        // Wait before retrying (exponential backoff)
+        await Future.delayed(Duration(seconds: retryCount * 2));
+      }
+    }
+    
+    throw Exception('Failed to create room after $maxRetries attempts');
   }
 
   /// Joins an existing game room.

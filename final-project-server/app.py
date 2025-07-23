@@ -9,7 +9,6 @@ from algorithms.melody_matcher import MelodyMatcher
 
 # Import our modules
 from api.room_routes import room_routes
-from websocket_handlers.events import socketio
 
 # Load environment variables
 load_dotenv()
@@ -24,13 +23,14 @@ CORS(app, resources={r"/*": {
     "allow_headers": ["Content-Type"]
 }})
 
-# Middleware to ensure all responses have CORS headers
-@app.after_request
-def add_cors_headers(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-    return response
+# The flask_cors extension handles this automatically.
+# This middleware is redundant and causes the double header issue.
+# @app.after_request
+# def add_cors_headers(response):
+#     response.headers.add('Access-Control-Allow-Origin', '*')
+#     response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+#     response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+#     return response
 
 # Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
@@ -39,7 +39,11 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
 melody_matcher = MelodyMatcher()
 
 # Initialize SocketIO with the app - configure for CORS
-socketio.init_app(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Import and register WebSocket events after socketio is created
+from websocket_handlers.events import register_socketio_events
+register_socketio_events(socketio)
 
 # Register blueprint for room routes
 app.register_blueprint(room_routes, url_prefix='/api/room')
@@ -51,14 +55,15 @@ def home():
         'status': 'running'
     })
 
-# Add a route for handling OPTIONS requests (preflight)
-@app.route('/<path:path>', methods=['OPTIONS'])
-def handle_options(path):
-    response = app.make_default_options_response()
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-    return response
+# The flask_cors extension handles OPTIONS preflight requests automatically.
+# This route is redundant.
+# @app.route('/<path:path>', methods=['OPTIONS'])
+# def handle_options(path):
+#     response = app.make_default_options_response()
+#     response.headers.add('Access-Control-Allow-Origin', '*')
+#     response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+#     response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+#     return response
 
 @app.route('/static/<path:filename>')
 def static_files(filename):
@@ -66,10 +71,25 @@ def static_files(filename):
 
 @app.route('/api/health')
 def health_check():
-    return jsonify({
-        'status': 'healthy',
-        'version': '1.0.0'
-    })
+    try:
+        # Test melody matcher is working
+        test_result = melody_matcher.dtw_distance([60, 62], [60, 62], [0, 500], [0, 500])
+        return jsonify({
+            'status': 'healthy',
+            'service': 'piano-game-server',
+            'version': '1.0.0',
+            'timestamp': int(time.time()),
+            'melody_matcher': 'working',
+            'socketio': 'enabled'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'service': 'piano-game-server',
+            'version': '1.0.0',
+            'timestamp': int(time.time()),
+            'error': str(e)
+        }), 500
 
 @app.route('/api/compare-melodies', methods=['POST'])
 def compare_melodies():
@@ -191,19 +211,33 @@ def cleanup_task():
         # Cleanup inactive rooms
         room_manager.cleanup_inactive_rooms()
 
-if __name__ == '__main__':
+# Create a WSGI application for production deployment
+def create_app():
+    """Create and configure the Flask-SocketIO application for WSGI deployment"""
     # Start the cleanup background task
     cleanup_thread = threading.Thread(target=cleanup_task)
     cleanup_thread.daemon = True
     cleanup_thread.start()
     
-    # Run the server with SocketIO
-    port = int(os.getenv('PORT', 5000))
+    return app
+
+# For gunicorn deployment - ensure SocketIO is properly initialized
+# Start the cleanup background task for production
+cleanup_thread = threading.Thread(target=cleanup_task)
+cleanup_thread.daemon = True
+cleanup_thread.start()
+
+# Export the Flask app (not socketio) as the WSGI application
+# The socketio instance wraps the Flask app and handles both HTTP and WebSocket
+application = app
+
+if __name__ == '__main__':
+    # Run the server with SocketIO for local development
+    port = int(os.getenv('PORT', 5001))
     
     # Enable CORS for WebSocket connections
     socketio.run(app, 
                 host='0.0.0.0', 
                 port=port, 
                 debug=True,
-                allow_unsafe_werkzeug=True,  # Add this for debugging
-                cors_allowed_origins="*")  # Explicitly set CORS for WebSockets 
+                allow_unsafe_werkzeug=True)  # Remove cors_allowed_origins parameter 

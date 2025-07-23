@@ -9,7 +9,7 @@ The Piano Game Server allows players to create or join game rooms where they tak
 ## Directory Structure
 
 ```
-flask_server/
+final-project-server/
 ├── algorithms/      
 │   └── melody_matcher.py   # Core melody matching algorithms
 ├── game/            
@@ -17,13 +17,20 @@ flask_server/
 │   └── manager.py          # RoomManager for handling multiple rooms
 ├── api/             
 │   └── room_routes.py      # HTTP API endpoints
-├── socket/          
+├── websocket_handlers/          
 │   └── events.py           # WebSocket event handlers
 ├── tests/           
-│   └── test_game.py        # Test script for HTTP and WebSocket testing
+│   ├── test_game.py        # Test script for HTTP and WebSocket testing
+│   └── test_melody_matcher.py # Melody matching algorithm tests
+├── static/
+│   └── melodies.json       # Sample melodies for testing
 ├── app.py                  # Main application file
+├── simple_app.py           # Simplified application for testing
 ├── requirements.txt        # Python dependencies
-└── app.yaml               # App Engine configuration
+├── app.yaml               # App Engine configuration
+├── start_server.sh        # Development server startup script
+├── stop_server.sh         # Development server shutdown script
+└── server_manager.sh      # Comprehensive server management
 ```
 
 ## Components
@@ -80,7 +87,7 @@ All HTTP API endpoints are defined in `api/room_routes.py` and mounted under `/a
 
 ### WebSocket Events
 
-The WebSocket events are defined in `socket/events.py` and provide real-time updates for the game:
+The WebSocket events are defined in `websocket_handlers/events.py` and provide real-time updates for the game:
 
 #### Server → Client Events:
 - `room_update` - Room state has changed
@@ -157,13 +164,58 @@ The WebSocket events are defined in `socket/events.py` and provide real-time upd
 }
 ```
 
+## Development Setup
+
+### Prerequisites
+- Python 3.9 or higher
+- pip (Python package manager)
+- Virtual environment (recommended)
+
+### Local Development
+1. Clone this repository
+2. Create a virtual environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Start the development server:
+   ```bash
+   ./start_server.sh
+   # Or manually: python app.py
+   ```
+5. Server will be available at `http://localhost:5001`
+
+### Server Management
+Use the provided scripts for easy server management:
+- `./start_server.sh` - Start server with health checks
+- `./stop_server.sh` - Stop server gracefully
+- `./server_manager.sh status` - Check server status
+- `./server_manager.sh logs` - View server logs
+
 ## Deployment to Google Cloud
 
 This server is configured for deployment to Google Cloud App Engine:
 
-1. Ensure the Google Cloud SDK is installed
-2. Update app.yaml if necessary
-3. Run deployment command: `gcloud app deploy`
+### Prerequisites
+- Google Cloud SDK installed and configured
+- Google Cloud project with App Engine enabled
+- Billing enabled on your Google Cloud project
+
+### Deployment Steps
+1. Ensure you're logged into Google Cloud:
+   ```bash
+   gcloud auth login
+   gcloud config set project YOUR_PROJECT_ID
+   ```
+2. Deploy to App Engine:
+   ```bash
+   gcloud app deploy
+   ```
+3. Your server will be available at: `https://YOUR_PROJECT_ID.appspot.com`
 
 The app.yaml is configured for Python 3.9 with eventlet support for WebSockets:
 

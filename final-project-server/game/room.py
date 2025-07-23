@@ -56,14 +56,14 @@ class Room:
             "durations": durations
         }
         
-        # Switch turn to the other player
-        self._switch_turn()
+        # Don't switch turn here - turn switches after replay submission
         self.last_activity = time.time()
         return True
         
     def get_challenge(self, player_id: str) -> Optional[Dict[str, Any]]:
         """Get the current melody challenge for a player to replay"""
-        if not self.challenge_melody or player_id != self.current_turn:
+        # Check if player is in the room and challenge exists
+        if not self.challenge_melody or player_id not in self.players:
             return None
             
         return self.challenge_melody
@@ -72,21 +72,31 @@ class Room:
                      timings: List[float], durations: List[float], 
                      score_result: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """Submit a replay attempt and update player's score"""
-        if not self.challenge_melody or player_id != self.current_turn:
+        # When there's a challenge, the OTHER player (not current turn) should submit replay
+        if not self.challenge_melody or player_id == self.current_turn:
             return False, None
             
-        # Update player's score
+        # Ensure the player submitting is actually in the room
+        if player_id not in self.players:
+            return False, None
+            
+        # Update player's score with binary win/lose logic (1 for ≥70%, 0 for <70%)
         if 'final_score' in score_result:
-            self.players[player_id]["score"] += score_result['final_score']
+            win_threshold = 0.70
+            if score_result['final_score'] >= win_threshold:
+                self.players[player_id]["score"] += 1  # Award 1 point for successful replay
+            # else: award 0 points (no change to score) for unsuccessful replay
             
         # Increment turn count
         self.turn_count += 1
         
         # Switch turns
+        old_turn = self.current_turn
         self._switch_turn()
+        print(f"🎮 SERVER: Turn switch {old_turn} -> {self.current_turn}")
         
         # Clear challenge melody for next round
-        challenge_creator = self.challenge_melody["creator_id"]
+        challenge_creator = self.challenge_melody["creator_id"]  
         self.challenge_melody = None
         
         self.last_activity = time.time()

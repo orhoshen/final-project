@@ -15,6 +15,10 @@ class MultiplayerService extends ChangeNotifier {
   bool _isJoining = false;
   bool _isCreating = false;
 
+  // Stream controllers for exposing game events
+  final StreamController<GameRoom?> _roomUpdateController = StreamController<GameRoom?>.broadcast();
+  final StreamController<Melody> _challengeAvailableController = StreamController<Melody>.broadcast();
+
   // Stream subscriptions
   StreamSubscription? _roomUpdateSubscription;
   StreamSubscription? _playerJoinedSubscription;
@@ -46,6 +50,12 @@ class MultiplayerService extends ChangeNotifier {
   // Add a getter for playerId
   String get playerId => _websocketService.playerId;
 
+  // Stream getter for room updates
+  Stream<GameRoom?> get roomUpdates => _roomUpdateController.stream;
+  
+  // Stream getter for challenge availability
+  Stream<Melody> get challengeAvailable => _challengeAvailableController.stream;
+
   // Check if the current user is the active player
   bool get isActivePlayer {
     if (_currentRoom == null || _websocketService.playerId.isEmpty) return false;
@@ -55,7 +65,8 @@ class MultiplayerService extends ChangeNotifier {
   // Check if the current user is the challenge player (the one who replays)
   bool get isChallengePlayer {
     if (_currentRoom == null || _websocketService.playerId.isEmpty) return false;
-    return _currentRoom!.challengePlayer?.id == _websocketService.playerId;
+    // The challenge player is the one who should match (NOT the active player who created)
+    return _currentRoom!.activePlayer?.id != _websocketService.playerId;
   }
 
   /// Set the player's name
@@ -98,6 +109,7 @@ class MultiplayerService extends ChangeNotifier {
   Future<void> disconnect() async {
     await _websocketService.disconnect();
     _currentRoom = null;
+    _roomUpdateController.add(null);
     notifyListeners();
   }
 
@@ -117,6 +129,28 @@ class MultiplayerService extends ChangeNotifier {
     debugPrint('Calling websocket service createRoom...');
     final result = await _websocketService.createRoom(_playerName);
     debugPrint('createRoom result: $result');
+
+    // If successful, immediately set up initial room state
+    if (result) {
+      final roomId = _websocketService.roomId;
+      final playerId = _websocketService.playerId;
+      
+      debugPrint('Setting up initial room state: $roomId, player: $playerId');
+      
+      // Create initial room state with just the creator
+      _currentRoom = GameRoom(
+        id: roomId,
+        players: [Player(id: playerId, name: _playerName, score: 0)],
+        state: GameState.waiting,
+        currentRound: 1,
+        totalRounds: 5,
+        activePlayer: Player(id: playerId, name: _playerName, score: 0),
+      );
+      
+      // Broadcast initial room update
+      _roomUpdateController.add(_currentRoom);
+      debugPrint('Initial room state created and broadcasted');
+    }
 
     _isCreating = false;
     notifyListeners();
@@ -154,6 +188,7 @@ class MultiplayerService extends ChangeNotifier {
     final result = await _websocketService.leaveRoom();
     if (result) {
       _currentRoom = null;
+      _roomUpdateController.add(null);
       notifyListeners();
     }
 
@@ -168,16 +203,25 @@ class MultiplayerService extends ChangeNotifier {
   }
 
   /// Submit a replay attempt to be scored
-  Future<bool> submitReplayAttempt(List<int> notes, List<int> timings, List<int> durations) async {
-    if (!isInRoom || !isChallengePlayer) return false;
+  Future<Map<String, dynamic>> submitReplayAttempt(List<int> notes, List<int> timings, List<int> durations) async {
+    if (!isInRoom || !isChallengePlayer) return {'success': false, 'error': 'Not in room or not the challenge player'};
 
     return await _websocketService.submitReplay(notes, timings, durations);
+  }
+
+  /// Update room state from server response (public method)
+  void updateRoomFromServerState(Map<String, dynamic> roomData) {
+    _updateRoomFromState(roomData);
+    _roomUpdateController.add(_currentRoom);
+    notifyListeners();
   }
 
   /// Setup WebSocket event listeners
   void _setupListeners() {
     // Room updates
     _roomUpdateSubscription = _websocketService.onRoomUpdate.listen((data) {
+      debugPrint('🎯 MultiplayerService received room_update event');
+      debugPrint('🎯 Room update data: $data');
       try {
         // Check if this is direct room state data or wrapped in 'room' key
         Map<String, dynamic> roomData;
@@ -202,7 +246,7 @@ class MultiplayerService extends ChangeNotifier {
           return Player(
             id: playerData['id'] as String,
             name: playerData['name'] as String,
-            score: playerData['score'] as int? ?? 0,
+            score: (playerData['score'] as num?)?.toDouble() ?? 0.0,
           );
         }).toList();
 
@@ -248,6 +292,9 @@ class MultiplayerService extends ChangeNotifier {
           currentChallenge: null, // Will be set via separate challenge events
         );
 
+        // Broadcast room update to listeners
+        debugPrint('🎯 Broadcasting room update to UI: ${_currentRoom?.players.length} players');
+        _roomUpdateController.add(_currentRoom);
         notifyListeners();
       } catch (e) {
         debugPrint('Error handling room update: $e');
@@ -257,11 +304,20 @@ class MultiplayerService extends ChangeNotifier {
 
     // Player joined
     _playerJoinedSubscription = _websocketService.onPlayerJoined.listen((data) {
+      debugPrint('🎯 MultiplayerService received player_joined event');
+      debugPrint('🎯 Player joined data: $data');
       try {
         // Update room state from the event
         if (data.containsKey('room_state')) {
+          debugPrint('🎯 Updating room state from player_joined event');
           _updateRoomFromState(data['room_state'] as Map<String, dynamic>);
+          
+          // Ensure room update is broadcast to UI
+          debugPrint('🎯 Broadcasting updated room state: ${_currentRoom?.players.length} players');
+          _roomUpdateController.add(_currentRoom);
           notifyListeners();
+        } else {
+          debugPrint('🎯 Warning: player_joined event missing room_state');
         }
       } catch (e) {
         debugPrint('Error handling player joined: $e');
@@ -283,6 +339,7 @@ class MultiplayerService extends ChangeNotifier {
           
           _currentRoom = _currentRoom!.copyWith(players: updatedPlayers);
         }
+        _roomUpdateController.add(_currentRoom);
         notifyListeners();
       } catch (e) {
         debugPrint('Error handling player left: $e');
@@ -302,6 +359,7 @@ class MultiplayerService extends ChangeNotifier {
 
           // Update game state
           _currentRoom!.changeState(GameState.recording);
+          _roomUpdateController.add(_currentRoom);
           notifyListeners();
         }
       } catch (e) {
@@ -318,9 +376,15 @@ class MultiplayerService extends ChangeNotifier {
             _updateRoomFromState(data['room_state'] as Map<String, dynamic>);
           }
 
-          // Then try to get the challenge melody from the server
-          _fetchCurrentChallenge();
+          // Fetch challenge if I'm NOT the current turn player (the matcher, not creator)
+          if (_currentRoom!.activePlayer?.id != _websocketService.playerId) {
+            debugPrint('🎵 I should match the challenge, fetching challenge melody');
+            _fetchCurrentChallenge();
+          } else {
+            debugPrint('🎵 I created the challenge, waiting for opponent to match');
+          }
           
+          _roomUpdateController.add(_currentRoom);
           notifyListeners();
         }
       } catch (e) {
@@ -337,6 +401,7 @@ class MultiplayerService extends ChangeNotifier {
             _updateRoomFromState(data['room_state'] as Map<String, dynamic>);
           }
           
+          _roomUpdateController.add(_currentRoom);
           notifyListeners();
         }
       } catch (e) {
@@ -361,7 +426,7 @@ class MultiplayerService extends ChangeNotifier {
         return Player(
           id: playerData['id'] as String,
           name: playerData['name'] as String,
-          score: playerData['score'] as int? ?? 0,
+          score: (playerData['score'] as num?)?.toDouble() ?? 0.0,
         );
       }).toList();
 
@@ -404,6 +469,9 @@ class MultiplayerService extends ChangeNotifier {
         totalRounds: _currentRoom!.totalRounds,
         currentChallenge: _currentRoom!.currentChallenge,
       );
+
+      // Broadcast room update to listeners
+      _roomUpdateController.add(_currentRoom);
     } catch (e) {
       debugPrint('Error updating room from state: $e');
     }
@@ -414,23 +482,54 @@ class MultiplayerService extends ChangeNotifier {
     if (_currentRoom == null || _websocketService.playerId.isEmpty) return;
     
     try {
+      debugPrint('🎵 Fetching challenge for room: ${_currentRoom!.id}, player: ${_websocketService.playerId}');
       final result = await ServerManager.instance.getChallenge(
         _currentRoom!.id, 
         _websocketService.playerId
       );
       
-      if (result['success'] == true && result.containsKey('melody')) {
-        final melodyData = result['melody'] as Map<String, dynamic>;
-        final melody = Melody(
-          notes: List<int>.from(melodyData['melody'] as List),
-          timings: List<int>.from(melodyData['timings'] as List),
-          durations: List<int>.from(melodyData['durations'] as List),
-        );
+      debugPrint('🎵 Challenge fetch result: $result');
+      
+      if (result['success'] == true) {
+        debugPrint('🎵 Processing challenge result: $result');
+        
+        Melody melody;
+        
+        // Handle the actual server response format (data at root level)
+        if (result.containsKey('melody') && result.containsKey('timings') && result.containsKey('durations')) {
+          debugPrint('🎵 Using root-level challenge data format');
+          melody = Melody(
+            notes: List<int>.from(result['melody'] as List),
+            timings: List<int>.from(result['timings'] as List),
+            durations: List<int>.from(result['durations'] as List),
+          );
+        }
+        // Fallback: Handle nested format if server changes
+        else if (result.containsKey('melody') && result['melody'] is Map) {
+          debugPrint('🎵 Using nested challenge data format');
+          final melodyData = result['melody'] as Map<String, dynamic>;
+          melody = Melody(
+            notes: List<int>.from(melodyData['melody'] as List),
+            timings: List<int>.from(melodyData['timings'] as List),
+            durations: List<int>.from(melodyData['durations'] as List),
+          );
+        } else {
+          throw Exception('Challenge response missing required fields: melody, timings, durations');
+        }
         
         _currentRoom!.setChallenge(melody);
+        debugPrint('🎵 Challenge melody set successfully: ${melody.notes.length} notes');
+        
+        // Emit challenge available event
+        _challengeAvailableController.add(melody);
+        debugPrint('🎵 Challenge available event emitted');
+      } else {
+        debugPrint('🎵 Challenge fetch failed: ${result['error'] ?? 'Unknown error'}');
       }
     } catch (e) {
       debugPrint('Error fetching challenge: $e');
+      // Don't crash the game - continue without the challenge melody
+      debugPrint('🎵 Continuing without challenge melody due to error');
     }
   }
 
@@ -443,6 +542,11 @@ class MultiplayerService extends ChangeNotifier {
     _turnChangeSubscription?.cancel();
     _newChallengeSubscription?.cancel();
     _scoreUpdateSubscription?.cancel();
+    
+    // Close stream controllers
+    _roomUpdateController.close();
+    _challengeAvailableController.close();
+    
     super.dispose();
   }
 }

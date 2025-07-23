@@ -4,18 +4,18 @@ import 'package:flutter/foundation.dart';
 class Player {
   final String id;
   final String name;
-  int score;
+  double score;
 
   Player({
     required this.id,
     required this.name,
-    this.score = 0,
+    this.score = 0.0,
   });
 
   Player copyWith({
     String? id,
     String? name,
-    int? score,
+    double? score,
   }) {
     return Player(
       id: id ?? this.id,
@@ -28,7 +28,7 @@ class Player {
     return Player(
       id: json['id'] as String,
       name: json['name'] as String,
-      score: json['score'] as int? ?? 0,
+      score: (json['score'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -130,7 +130,7 @@ class GameRoom extends ChangeNotifier {
   }
 
   /// Update player score
-  void updatePlayerScore(String playerId, int score) {
+  void updatePlayerScore(String playerId, double score) {
     for (int i = 0; i < players.length; i++) {
       if (players[i].id == playerId) {
         players[i].score = score;

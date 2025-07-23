@@ -166,7 +166,11 @@ class EnhancedWebSocketService extends ChangeNotifier {
       _socket?.dispose();
       _socket = socket_io.io(
         _serverUrl,
-        socket_io.OptionBuilder().disableAutoConnect().setTimeout(10000).build(),
+        socket_io.OptionBuilder()
+            .disableAutoConnect()
+            .setTimeout(30000) // Increased to 30 seconds
+            .setTransports(['websocket']) // Force websocket transport
+            .build(),
       );
 
       _socket!.onConnect((_) {
@@ -235,11 +239,11 @@ class EnhancedWebSocketService extends ChangeNotifier {
 
       _socket!.connect();
 
-      // Connection timeout
-      timeoutTimer = Timer(const Duration(seconds: 15), () {
+      // Connection timeout (increased for Cloud Run)
+      timeoutTimer = Timer(const Duration(seconds: 35), () {
         if (!completer.isCompleted) {
-          debugPrint('Socket.IO connection timeout');
-          _lastError = 'Connection timeout';
+          debugPrint('Socket.IO connection timeout after 35 seconds');
+          _lastError = 'Connection timeout - server may be cold starting';
           completer.complete(false);
         }
       });
@@ -297,11 +301,18 @@ class EnhancedWebSocketService extends ChangeNotifier {
 
   /// Handle incoming events
   void _handleEvent(String eventName, dynamic data, StreamController<Map<String, dynamic>> controller) {
+    // Enhanced logging for debugging
+    debugPrint('🔌 WebSocket Event Received: $eventName');
+    debugPrint('🔌 Event Data: $data');
+    debugPrint('🔌 Player ID: $_playerId, Room ID: $_roomId');
+
     if (data is Map<String, dynamic>) {
+      debugPrint('🔌 Processing Map data for $eventName');
       controller.add(data);
     } else if (data is String) {
       try {
         final Map<String, dynamic> parsedData = jsonDecode(data);
+        debugPrint('🔌 Parsed JSON for $eventName: $parsedData');
         controller.add(parsedData);
       } catch (e) {
         debugPrint('Error decoding JSON for event $eventName: $e. Data: $data');
@@ -361,25 +372,29 @@ class EnhancedWebSocketService extends ChangeNotifier {
       debugPrint('Cannot create room: Not connected to server.');
       return false;
     }
-    
+
     try {
       debugPrint('Creating room for player: $playerName');
       // Use HTTP API to create room
       final result = await ServerManager.instance.createRoom(playerName);
       debugPrint('Create room response: $result');
-      
+
       if (result['success'] == true) {
         _roomId = result['room_id'] ?? '';
         _playerId = result['player_id'] ?? '';
-        
+
         debugPrint('Room created successfully: $_roomId, Player ID: $_playerId');
-        
+
+        // Add delay to prevent server-side race condition between HTTP API and WebSocket
+        debugPrint('Waiting 500ms for server synchronization...');
+        await Future.delayed(const Duration(milliseconds: 500));
+
         // Join the Socket.IO room for real-time events
         _emit('join_room', {
           'room_id': _roomId,
           'player_id': _playerId,
         });
-        
+
         debugPrint('Emitted join_room event for real-time updates');
         return true;
       } else {
@@ -397,30 +412,52 @@ class EnhancedWebSocketService extends ChangeNotifier {
       debugPrint('Cannot join room: Not connected to server.');
       return false;
     }
-    
+
     try {
       debugPrint('Joining room: $roomId with player: $playerName');
       // Use HTTP API to join room
       final result = await ServerManager.instance.joinRoom(roomId, playerName);
       debugPrint('Join room response: $result');
-      
+
+      if (!result.containsKey('success')) {
+        debugPrint('Error: Server response missing "success" field');
+        return false;
+      }
+
       if (result['success'] == true) {
+        // Validate required fields
+        if (!result.containsKey('player_id')) {
+          debugPrint('Error: Server response missing "player_id" field');
+          return false;
+        }
+
+        final playerId = result['player_id'];
+        if (playerId == null || playerId.toString().isEmpty) {
+          debugPrint('Error: Server returned null or empty player_id');
+          return false;
+        }
+
         _roomId = roomId;
-        _playerId = result['player_id'] ?? '';
-        
+        _playerId = playerId.toString();
+
         debugPrint('Room joined successfully: $_roomId, Player ID: $_playerId');
-        
+
+        // Add delay to prevent server-side race condition between HTTP API and WebSocket
+        debugPrint('Waiting 500ms for server synchronization...');
+        await Future.delayed(const Duration(milliseconds: 500));
+
         // Join the Socket.IO room for real-time events
         _emit('join_room', {
           'room_id': _roomId,
           'player_id': _playerId,
         });
-        
+
         debugPrint('Emitted join_room event for real-time updates');
         notifyListeners();
         return true;
       } else {
-        debugPrint('Failed to join room: ${result['error']}');
+        final errorMsg = result['error'] ?? 'Unknown error';
+        debugPrint('Failed to join room: $errorMsg');
         return false;
       }
     } catch (e) {
@@ -448,17 +485,17 @@ class EnhancedWebSocketService extends ChangeNotifier {
       debugPrint('Cannot submit melody: Not connected, no room ID, or no player ID.');
       return false;
     }
-    
+
     try {
       // Use HTTP API to record melody
       final result = await ServerManager.instance.recordMelody(_roomId, _playerId, notes, timings, durations);
-      
+
       if (result['success'] == true) {
         // Notify other players via WebSocket
         _emit('melody_recorded', {
           'room_id': _roomId,
         });
-        
+
         debugPrint('Melody recorded successfully');
         return true;
       } else {
@@ -471,32 +508,40 @@ class EnhancedWebSocketService extends ChangeNotifier {
     }
   }
 
-  Future<bool> submitReplay(List<int> notes, List<int> timings, List<int> durations) async {
+  Future<Map<String, dynamic>> submitReplay(List<int> notes, List<int> timings, List<int> durations) async {
     if (!_isConnected || _roomId.isEmpty || _playerId.isEmpty) {
       debugPrint('Cannot submit replay: Not connected, no room ID, or no player ID.');
-      return false;
+      return {'success': false, 'error': 'Not connected or missing room/player info'};
     }
-    
+
     try {
+      debugPrint('🎯 Submitting replay with Room ID: $_roomId, Player ID: $_playerId');
+      debugPrint('🎯 Notes: $notes');
+      debugPrint(
+          '🎯 Is connected: $_isConnected, Room ID empty: ${_roomId.isEmpty}, Player ID empty: ${_playerId.isEmpty}');
+
       // Use HTTP API to submit replay
       final result = await ServerManager.instance.submitReplay(_roomId, _playerId, notes, timings, durations);
-      
+
       if (result['success'] == true) {
         // Notify other players via WebSocket
         _emit('replay_submitted', {
           'room_id': _roomId,
           'score': result['score'],
         });
-        
+
         debugPrint('Replay submitted successfully with score: ${result['score']['final_score']}');
-        return true;
+        return result; // Return the full result including score
       } else {
         debugPrint('Failed to submit replay: ${result['error']}');
-        return false;
+        debugPrint('Full server response: $result');
+        debugPrint('Room ID: $_roomId, Player ID: $_playerId');
+        debugPrint('Notes: $notes, Timings: $timings, Durations: $durations');
+        return result; // Return the error result
       }
     } catch (e) {
       debugPrint('Failed to submit replay: $e');
-      return false;
+      return {'success': false, 'error': e.toString()};
     }
   }
 
