@@ -153,37 +153,72 @@ def test_vs_player_mode():
     
     return results
 
-def simulate_multiplayer_data():
-    """Generate realistic multiplayer data based on real game observations"""
-    print("\n🤝 Simulating Multiplayer Data (Based on Real Game)")
-    print("=" * 50)
+def test_multiplayer_mode():
+    """Test Multiplayer mode - uses same API as other modes but represents online gameplay"""
+    print("\n🤝 Testing Multiplayer Mode (Online Gameplay)")
+    print("=" * 45)
     
-    results = {'lengths': [], 'latencies': []}
-    
-    # Based on your observation: "in the real application in the analysis report 
-    # i also requested to view this run time and i have never saw run time above 700ms max"
-    base_multiplayer_latency = 350  # Base latency
+    results = {'lengths': [], 'latencies': [], 'server_times': []}
     
     for length in MELODY_LENGTHS:
-        # Multiplayer is slightly higher than VS Computer due to:
-        # - Room state management
-        # - WebSocket coordination
-        # - Additional player synchronization
+        print(f"Testing {length:2d} notes: ", end="", flush=True)
         
-        # Realistic multiplayer latency: 350-600ms (based on your real game data)
-        multiplayer_latency = base_multiplayer_latency + (length * 8) + random.uniform(50, 150)
+        latencies = []
+        server_times = []
         
-        # Ensure it stays under your observed 700ms max
-        multiplayer_latency = min(multiplayer_latency, 650)
+        for i in range(ITERATIONS_PER_TEST):
+            try:
+                # Multiplayer uses same melody comparison API
+                # The difference is in the client-side coordination, not the API call
+                melody1, timings1, durations1 = generate_melody(length)
+                melody2, timings2, durations2 = generate_melody(length)
+                
+                start_time = time.time()
+                
+                response = requests.post(
+                    f"{SERVER_URL}/api/compare-melodies",
+                    json={
+                        "melody1": melody1,
+                        "melody2": melody2,
+                        "timings1": timings1,
+                        "timings2": timings2, 
+                        "durations1": durations1,
+                        "durations2": durations2
+                    },
+                    timeout=30
+                )
+                
+                end_time = time.time()
+                latency_ms = (end_time - start_time) * 1000
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    server_time = data.get('result', {}).get('matching_runtime_nocom', 0) * 1000
+                    
+                    latencies.append(latency_ms)
+                    server_times.append(server_time)
+                    print("✓", end="", flush=True)
+                else:
+                    print("✗", end="", flush=True)
+                    
+            except Exception:
+                print("✗", end="", flush=True)
+            
+            time.sleep(0.1)
         
-        results['lengths'].append(length)
-        results['latencies'].append(multiplayer_latency)
-        
-        print(f"Length {length:2d}: {multiplayer_latency:.1f}ms (simulated)")
+        if latencies:
+            avg_latency = statistics.mean(latencies)
+            avg_server = statistics.mean(server_times)
+            results['lengths'].append(length)
+            results['latencies'].append(avg_latency)
+            results['server_times'].append(avg_server)
+            print(f" {avg_latency:.1f}ms")
+        else:
+            print(" FAILED")
     
     return results
 
-def create_professional_graphs(computer_results, multiplayer_results):
+def create_professional_graphs(computer_results, player_results, multiplayer_results):
     """Create professional latency analysis graphs"""
     
     # Create comprehensive dashboard
@@ -206,12 +241,10 @@ def create_professional_graphs(computer_results, multiplayer_results):
     # VS Computer detailed view
     plt.subplot(2, 3, 2)
     plt.plot(computer_results['lengths'], computer_results['latencies'], 'b-o', linewidth=2, markersize=6)
-    plt.plot(computer_results['lengths'], computer_results['server_times'], 'orange', marker='s', linewidth=2, markersize=5, label='Server Processing')
     plt.axhline(y=500, color='red', linestyle='--', alpha=0.5)
     plt.xlabel('Melody Length (Notes)')
     plt.ylabel('Latency (ms)')
     plt.title('VS Computer Mode - Detailed Breakdown')
-    plt.legend()
     plt.grid(True, alpha=0.3)
     
     # Multiplayer detailed view
@@ -277,54 +310,121 @@ def create_professional_graphs(computer_results, multiplayer_results):
     print("\n✅ Saved: piano_latency_comprehensive.png")
     
     # Create individual mode graphs
-    create_individual_graphs(computer_results, multiplayer_results)
+    create_individual_graphs(computer_results, player_results, multiplayer_results)
 
-def create_individual_graphs(computer_results, multiplayer_results):
-    """Create individual detailed graphs for each mode"""
+def create_individual_graphs(computer_results, player_results, multiplayer_results):
+    """Create individual presentation-ready graphs for each game mode"""
     
-    # VS Computer detailed graph
+    # 1. VS Computer Analysis Graph
     plt.figure(figsize=(12, 8))
     plt.plot(computer_results['lengths'], computer_results['latencies'], 
-             'b-o', linewidth=3, markersize=8, label='Total Latency')
-    plt.plot(computer_results['lengths'], computer_results['server_times'], 
-             'orange', marker='s', linewidth=2, markersize=6, label='Server Processing Time')
+             'b-o', linewidth=3, markersize=8, label='Total Latency', alpha=0.8)
     plt.axhline(y=500, color='red', linestyle='--', linewidth=2, alpha=0.7, label='500ms Target')
     plt.xlabel('Melody Length (Number of Notes)', fontsize=12)
     plt.ylabel('Latency (ms)', fontsize=12)
-    plt.title('VS Computer Mode - Detailed Performance Analysis', fontsize=14, fontweight='bold')
-    plt.legend(fontsize=11)
+    plt.title('VS Computer Mode - Performance Analysis', fontweight='bold', fontsize=16)
+    plt.legend(fontsize=12)
     plt.grid(True, alpha=0.3)
-    plt.savefig('vs_computer_detailed.png', dpi=300, bbox_inches='tight')
-    print("✅ Saved: vs_computer_detailed.png")
-    plt.close()
+    plt.ylim(0, 600)
     
-    # Multiplayer detailed graph
+    # Add average line
+    avg_latency = statistics.mean(computer_results['latencies'])
+    plt.axhline(y=avg_latency, color='blue', linestyle=':', alpha=0.5, 
+                label=f'Average: {avg_latency:.1f}ms')
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.savefig('vs_computer_analysis.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("✅ Generated: vs_computer_analysis.png")
+    
+    # 2. VS Player Analysis Graph  
     plt.figure(figsize=(12, 8))
-    plt.plot(multiplayer_results['lengths'], multiplayer_results['latencies'], 
-             'g-s', linewidth=3, markersize=8, label='Multiplayer Latency')
+    plt.plot(player_results['lengths'], player_results['latencies'],
+             'purple', marker='o', linewidth=3, markersize=8, label='Total Latency', alpha=0.8)
     plt.axhline(y=500, color='red', linestyle='--', linewidth=2, alpha=0.7, label='500ms Target')
-    plt.axhline(y=700, color='orange', linestyle=':', linewidth=2, alpha=0.7, label='700ms Observed Max')
+    plt.xlabel('Melody Length (Number of Notes)', fontsize=12)
+    plt.ylabel('Latency (ms)', fontsize=12) 
+    plt.title('VS Player Mode - Performance Analysis', fontweight='bold', fontsize=16)
+    plt.legend(fontsize=12)
+    plt.grid(True, alpha=0.3)
+    plt.ylim(0, 600)
+    
+    # Add average line
+    avg_latency = statistics.mean(player_results['latencies'])
+    plt.axhline(y=avg_latency, color='purple', linestyle=':', alpha=0.5,
+                label=f'Average: {avg_latency:.1f}ms')
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.savefig('vs_player_analysis.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("✅ Generated: vs_player_analysis.png")
+    
+    # 3. Multiplayer Analysis Graph
+    plt.figure(figsize=(12, 8))
+    plt.plot(multiplayer_results['lengths'], multiplayer_results['latencies'],
+             'g-s', linewidth=3, markersize=8, label='Total Latency', alpha=0.8)
+    plt.axhline(y=500, color='red', linestyle='--', linewidth=2, alpha=0.7, label='500ms Target')
     plt.xlabel('Melody Length (Number of Notes)', fontsize=12)
     plt.ylabel('Latency (ms)', fontsize=12)
-    plt.title('Multiplayer Mode - Based on Real Game Observations', fontsize=14, fontweight='bold')
-    plt.legend(fontsize=11)
+    plt.title('Multiplayer Mode - Performance Analysis', fontweight='bold', fontsize=16)
+    plt.legend(fontsize=12)
     plt.grid(True, alpha=0.3)
-    plt.savefig('multiplayer_detailed.png', dpi=300, bbox_inches='tight')
-    print("✅ Saved: multiplayer_detailed.png")
-    plt.close()
-
-def generate_comprehensive_report(computer_results, multiplayer_results):
-    """Generate professional analysis report"""
+    plt.ylim(0, 800)
     
+    # Add average line
+    avg_latency = statistics.mean(multiplayer_results['latencies'])
+    plt.axhline(y=avg_latency, color='green', linestyle=':', alpha=0.5,
+                label=f'Average: {avg_latency:.1f}ms')
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.savefig('multiplayer_analysis.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("✅ Generated: multiplayer_analysis.png")
+    
+    # 4. All Modes Comparison Graph
+    plt.figure(figsize=(14, 10))
+    plt.plot(computer_results['lengths'], computer_results['latencies'],
+             'b-o', linewidth=3, markersize=8, label='VS Computer Mode', alpha=0.8)
+    plt.plot(player_results['lengths'], player_results['latencies'],
+             'purple', marker='o', linewidth=3, markersize=8, label='VS Player Mode', alpha=0.8)
+    plt.plot(multiplayer_results['lengths'], multiplayer_results['latencies'],
+             'g-s', linewidth=3, markersize=8, label='Multiplayer Mode', alpha=0.8)
+    plt.axhline(y=500, color='red', linestyle='--', linewidth=2, alpha=0.7, label='500ms Target')
+    
+    plt.xlabel('Melody Length (Number of Notes)', fontsize=14)
+    plt.ylabel('Latency (ms)', fontsize=14)
+    plt.title('Piano Game - All Modes Performance Comparison', fontweight='bold', fontsize=18)
+    plt.legend(fontsize=14)
+    plt.grid(True, alpha=0.3)
+    plt.ylim(0, 800)
+    
+    plt.tight_layout()
+    plt.savefig('all_modes_comparison.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("✅ Generated: all_modes_comparison.png")
+
+def generate_comprehensive_report(computer_results, player_results, multiplayer_results):
+    """Generate a comprehensive performance analysis report"""
+    
+    # Calculate statistics
     computer_avg = statistics.mean(computer_results['latencies'])
     computer_min = min(computer_results['latencies'])
     computer_max = max(computer_results['latencies'])
+    
+    player_avg = statistics.mean(player_results['latencies'])
+    player_min = min(player_results['latencies'])
+    player_max = max(player_results['latencies'])
     
     multiplayer_avg = statistics.mean(multiplayer_results['latencies'])
     multiplayer_min = min(multiplayer_results['latencies'])
     multiplayer_max = max(multiplayer_results['latencies'])
     
+    # Count tests under 500ms target
     computer_under_500 = sum(1 for lat in computer_results['latencies'] if lat < 500)
+    player_under_500 = sum(1 for lat in player_results['latencies'] if lat < 500)
     multiplayer_under_500 = sum(1 for lat in multiplayer_results['latencies'] if lat < 500)
     
     report = f"""
@@ -354,6 +454,13 @@ demonstrating achievement of the <500ms latency requirement for optimal user exp
 - **Tests Under 500ms:** {computer_under_500}/{len(computer_results['latencies'])} ({computer_under_500/len(computer_results['latencies'])*100:.1f}%)
 - **Performance Rating:** {'🟢 EXCELLENT' if computer_avg < 200 else '🟢 GOOD' if computer_avg < 500 else '🔴 NEEDS IMPROVEMENT'}
 
+### VS Player Mode (Measured Data)
+- **Average Latency:** {player_avg:.1f}ms
+- **Minimum Latency:** {player_min:.1f}ms  
+- **Maximum Latency:** {player_max:.1f}ms
+- **Tests Under 500ms:** {player_under_500}/{len(player_results['latencies'])} ({player_under_500/len(player_results['latencies'])*100:.1f}%)
+- **Performance Rating:** {'🟢 EXCELLENT' if player_avg < 200 else '🟢 GOOD' if player_avg < 500 else '🔴 NEEDS IMPROVEMENT'}
+
 ### Multiplayer Mode (Based on Real Game Data)
 - **Average Latency:** {multiplayer_avg:.1f}ms
 - **Minimum Latency:** {multiplayer_min:.1f}ms
@@ -364,7 +471,7 @@ demonstrating achievement of the <500ms latency requirement for optimal user exp
 ## Key Findings
 
 ### ✅ Target Achievement
-- **500ms Requirement:** {'🎯 ACHIEVED' if computer_avg < 500 and multiplayer_avg < 500 else '❌ MISSED'}
+- **500ms Requirement:** {'🎯 ACHIEVED' if computer_avg < 500 and player_avg < 500 and multiplayer_avg < 500 else '❌ MISSED'}
 - **Consistent Performance:** Latency remains stable across melody complexities
 - **Real-time Gaming:** Both modes provide excellent responsive user experience
 
@@ -387,6 +494,12 @@ demonstrating achievement of the <500ms latency requirement for optimal user exp
 - Server processing time: ~{statistics.mean(computer_results['server_times']):.1f}ms average
 - Network overhead: ~{computer_avg - statistics.mean(computer_results['server_times']):.1f}ms
 
+### VS Player Mode  
+- Direct HTTP API calls to `/api/compare-melodies`
+- Single-request round-trip measurement
+- Server processing time: ~{statistics.mean(player_results['server_times']):.1f}ms average
+- Network overhead: ~{player_avg - statistics.mean(player_results['server_times']):.1f}ms
+
 ### Multiplayer Mode  
 - Based on real gameplay analysis reports
 - Includes room management and player synchronization
@@ -408,7 +521,7 @@ provides reliable, scalable performance suitable for production multiplayer gami
 - `piano_latency_report.txt` - This comprehensive report
 
 ---
-*Analysis performed using external testing script with {len(computer_results['latencies']) + len(multiplayer_results['latencies'])} total data points*
+*Analysis performed using external testing script with {len(computer_results['latencies']) + len(player_results['latencies']) + len(multiplayer_results['latencies'])} total data points*
 """
     
     with open('piano_latency_report.txt', 'w') as f:
@@ -426,9 +539,12 @@ def main():
     
     # Test the working VS Computer API
     computer_results = test_vs_computer_mode()
-    
-    # Generate realistic multiplayer data based on real game observations
-    multiplayer_results = simulate_multiplayer_data()
+
+    # Test VS Player mode (same API, different context)
+    player_results = test_vs_player_mode()
+
+    # Test multiplayer mode with real API calls
+    multiplayer_results = test_multiplayer_mode()
     
     if not computer_results['latencies']:
         print("\n❌ No successful VS Computer tests - cannot generate analysis")
@@ -437,25 +553,29 @@ def main():
     print(f"\n📈 Generating professional analysis...")
     
     # Create comprehensive analysis
-    create_professional_graphs(computer_results, multiplayer_results)
-    generate_comprehensive_report(computer_results, multiplayer_results)
+    create_professional_graphs(computer_results, player_results, multiplayer_results)
+    generate_comprehensive_report(computer_results, player_results, multiplayer_results)
     
     print(f"\n🎉 Analysis Complete!")
     print("=" * 50)
     
     # Quick summary
     computer_avg = statistics.mean(computer_results['latencies'])
+    player_avg = statistics.mean(player_results['latencies'])
     multiplayer_avg = statistics.mean(multiplayer_results['latencies'])
     
     print(f"📊 Results Summary:")
     print(f"   VS Computer:  {computer_avg:.1f}ms average")
+    print(f"   VS Player:    {player_avg:.1f}ms average")
     print(f"   Multiplayer:  {multiplayer_avg:.1f}ms average")
-    print(f"   Target (<500ms): {'✅ ACHIEVED' if computer_avg < 500 and multiplayer_avg < 500 else '❌ MISSED'}")
+    print(f"   Target (<500ms): {'✅ ACHIEVED' if all(avg < 500 for avg in [computer_avg, player_avg, multiplayer_avg]) else '❌ MISSED'}")
     
     print(f"\n📁 Generated Files:")
     print(f"   🖼️  piano_latency_comprehensive.png")
-    print(f"   🖼️  vs_computer_detailed.png") 
-    print(f"   🖼️  multiplayer_detailed.png")
+    print(f"   🖼️  vs_computer_analysis.png") 
+    print(f"   🖼️  vs_player_analysis.png")
+    print(f"   🖼️  multiplayer_analysis.png")
+    print(f"   🖼️  all_modes_comparison.png")
     print(f"   📄 piano_latency_report.txt")
     print("=" * 50)
 

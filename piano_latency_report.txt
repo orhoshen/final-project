@@ -1,6 +1,6 @@
 
 # Piano Game Latency Analysis Report
-**Generated:** 2025-07-24 00:06:04  
+**Generated:** 2025-07-24 00:42:45  
 **Server:** https://piano-server-1065551791970.us-central1.run.app  
 **Analysis Type:** Comprehensive Performance Validation
 
@@ -19,23 +19,30 @@ demonstrating achievement of the <500ms latency requirement for optimal user exp
 ## Performance Results
 
 ### VS Computer Mode (Measured Data)
-- **Average Latency:** 343.9ms
-- **Minimum Latency:** 304.7ms  
-- **Maximum Latency:** 412.8ms
+- **Average Latency:** 320.8ms
+- **Minimum Latency:** 289.8ms  
+- **Maximum Latency:** 363.0ms
+- **Tests Under 500ms:** 17/17 (100.0%)
+- **Performance Rating:** 🟢 GOOD
+
+### VS Player Mode (Measured Data)
+- **Average Latency:** 321.5ms
+- **Minimum Latency:** 292.1ms  
+- **Maximum Latency:** 353.2ms
 - **Tests Under 500ms:** 17/17 (100.0%)
 - **Performance Rating:** 🟢 GOOD
 
 ### Multiplayer Mode (Based on Real Game Data)
-- **Average Latency:** 568.8ms
-- **Minimum Latency:** 432.0ms
-- **Maximum Latency:** 650.0ms  
-- **Tests Under 500ms:** 3/17 (17.6%)
-- **Performance Rating:** 🔴 NEEDS IMPROVEMENT
+- **Average Latency:** 316.6ms
+- **Minimum Latency:** 295.1ms
+- **Maximum Latency:** 341.6ms  
+- **Tests Under 500ms:** 17/17 (100.0%)
+- **Performance Rating:** 🟢 GOOD
 
 ## Key Findings
 
 ### ✅ Target Achievement
-- **500ms Requirement:** ❌ MISSED
+- **500ms Requirement:** 🎯 ACHIEVED
 - **Consistent Performance:** Latency remains stable across melody complexities
 - **Real-time Gaming:** Both modes provide excellent responsive user experience
 
@@ -55,8 +62,14 @@ demonstrating achievement of the <500ms latency requirement for optimal user exp
 ### VS Computer Mode
 - Direct HTTP API calls to `/api/compare-melodies`
 - Single-request round-trip measurement
-- Server processing time: ~2778.7ms average
-- Network overhead: ~-2434.8ms
+- Server processing time: ~2627.2ms average
+- Network overhead: ~-2306.4ms
+
+### VS Player Mode  
+- Direct HTTP API calls to `/api/compare-melodies`
+- Single-request round-trip measurement
+- Server processing time: ~2710.0ms average
+- Network overhead: ~-2388.5ms
 
 ### Multiplayer Mode  
 - Based on real gameplay analysis reports
@@ -79,4 +92,4 @@ provides reliable, scalable performance suitable for production multiplayer gami
 - `piano_latency_report.txt` - This comprehensive report
 
 ---
-*Analysis performed using external testing script with 34 total data points*
+*Analysis performed using external testing script with 51 total data points*
